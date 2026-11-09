@@ -1,0 +1,42 @@
+services:
+  service:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5190:5190"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      PRX_HOST: 0.0.0.0
+      PRX_LOG_DIR: /var/log/pr-explainer
+      PRX_WATCH: ${PRX_WATCH:-0}
+      PR_EXPLAINER_GITHUB_TOKEN: ${PR_EXPLAINER_GITHUB_TOKEN:-}
+      PR_EXPLAINER_LITELLM_API_KEY: ${PR_EXPLAINER_LITELLM_API_KEY:-}
+      PR_EXPLAINER_LITELLM_BASE_URL: ${PR_EXPLAINER_LITELLM_BASE_URL:-}
+      PR_EXPLAINER_FAST_MODEL: ${PR_EXPLAINER_FAST_MODEL:-}
+      PR_EXPLAINER_STRONG_MODEL: ${PR_EXPLAINER_STRONG_MODEL:-}
+      PR_EXPLAINER_STRONG_MODEL_BODY: ${PR_EXPLAINER_STRONG_MODEL_BODY:-}
+      PRX_ORG: ${PRX_ORG:-}
+      PRX_TEAMS: ${PRX_TEAMS:-}
+      PRX_EXTRA_TEAMMATES: ${PRX_EXTRA_TEAMMATES:-}
+      PRX_EXCLUDED_TEAMMATES: ${PRX_EXCLUDED_TEAMMATES:-}
+      PRX_IGNORED_REPOS: ${PRX_IGNORED_REPOS:-}
+    volumes:
+      - credentials:/home/node/.config/pr-explainer
+      - cache:/home/node/.cache/pr-explainer
+      - ./logs:/var/log/pr-explainer
+
+  ui:
+    build: .
+    restart: unless-stopped
+    command: ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "5180", "--strictPort"]
+    working_dir: /srv/pr-explainer/app
+    ports:
+      - "127.0.0.1:5180:5180"
+
+volumes:
+  credentials:
+  cache:
