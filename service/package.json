@@ -1,0 +1,12 @@
+{
+  "name": "pr-explainer-service",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "watch-preview": "node scripts/watch-preview.js"
+  }
+}
