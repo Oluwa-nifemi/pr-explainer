@@ -4,6 +4,7 @@ import { MODELS, getStoryModel, logCall, requestFields, schemaFor } from './mode
 
 export const DEFAULT_BASE_URL = '';
 const MAX_CONCURRENCY = Number(process.env.PRX_MAX_CONCURRENCY) > 0 ? Number(process.env.PRX_MAX_CONCURRENCY) : 6;
+const SILENCE_MS = Number(process.env.PRX_SILENCE_TIMEOUT_MS) > 0 ? Number(process.env.PRX_SILENCE_TIMEOUT_MS) : 60000;
 
 let llmConfig = {};
 
@@ -126,6 +127,12 @@ export async function chat({
   const startedAt = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new Error('timeout after ' + timeoutMs + 'ms')), timeoutMs);
+  let silenceTimer;
+  const armSilence = () => {
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => ctrl.abort(new Error('timeout: no data for ' + SILENCE_MS / 1000 + 's')), SILENCE_MS);
+  };
+  armSilence();
   const abortSignal = signal ? AbortSignal.any([ctrl.signal, signal]) : ctrl.signal;
   const rec = {
     label,
@@ -155,6 +162,7 @@ export async function chat({
     const decoder = new TextDecoder();
     let buf = '';
     for await (const chunk of res.body) {
+      armSilence();
       buf += decoder.decode(chunk, { stream: true });
       let nl;
       while ((nl = buf.indexOf('\n')) >= 0) {
@@ -201,6 +209,7 @@ export async function chat({
     rec.error = signal?.aborted ? 'aborted' : String(e?.message || e);
   } finally {
     clearTimeout(timer);
+    clearTimeout(silenceTimer);
     release(model);
   }
   rec.totalMs = Date.now() - startedAt;
