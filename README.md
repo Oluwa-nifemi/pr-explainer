@@ -62,6 +62,12 @@ You need Docker, a GitHub token and a [LiteLLM](https://github.com/BerriAI/litel
 
 The containers restart by themselves when Docker starts. Turn on "Start Docker Desktop when you sign in" and nothing else is needed.
 
+### Open a PR from Raycast
+
+Add this repo's `raycast/` folder as a Script Directory in Raycast Settings → Extensions → Script Commands. The script must be executable: `chmod +x raycast/explain-pr.sh`.
+
+Search for **Explain PR**, paste a GitHub PR URL into the argument field, and press Enter. It opens that PR in your browser. PR Explainer must already be running locally.
+
 **GitHub token.** It must read the repos you review and write reviews. A classic token with `repo` works. A fine-grained token needs Pull requests (read and write) and Contents (read).
 
 **LiteLLM gateway.** The service calls `/chat/completions` on your gateway. Only LiteLLM is tested.
