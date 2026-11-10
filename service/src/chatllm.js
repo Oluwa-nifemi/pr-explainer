@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { Limiter } from '../../pipeline/src/llm.js';
 import { MODELS, logCall, requestFields } from '../../pipeline/src/models.js';
 
@@ -5,11 +6,21 @@ export { MODELS };
 export const chatLimiter = new Limiter(2);
 
 export class LlmError extends Error {
-  constructor(status, message) {
-    super(message);
+  constructor(status, message, options) {
+    super(message, options);
     this.name = 'LlmError';
     this.status = status;
   }
+}
+
+const TRANSIENT_NETWORK_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET']);
+
+function networkCodes(error) {
+  return [...new Set([
+    ...(typeof error?.code === 'string' && /^[A-Z0-9_]+$/.test(error.code) ? [error.code] : []),
+    ...(error?.cause ? networkCodes(error.cause) : []),
+    ...(error?.errors || []).flatMap(networkCodes),
+  ])];
 }
 
 export async function streamAnswer({
@@ -49,19 +60,28 @@ export async function streamAnswer({
   const toolCalls = [];
   try {
     let res;
-    try {
-      res = await fetch(baseUrl + '/chat/completions', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(apiKey ? { authorization: 'Bearer ' + apiKey } : {}),
-        },
-        body: JSON.stringify(body),
-        signal: abortSignal,
-      });
-    } catch (err) {
-      if (ctrl.signal.aborted) throw new LlmError(504, 'the LLM call timed out after ' + Math.round(timeoutMs / 1000) + 's');
-      throw new LlmError(502, 'could not reach the LLM gateway: ' + err.message);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        res = await fetch(baseUrl + '/chat/completions', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(apiKey ? { authorization: 'Bearer ' + apiKey } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: abortSignal,
+        });
+        break;
+      } catch (err) {
+        if (abortSignal.aborted) throw err;
+        const codes = networkCodes(err);
+        if (attempt === 0 && codes.some((code) => TRANSIENT_NETWORK_CODES.has(code))) {
+          console.warn('[pr-explainer] chat connection failed (' + codes.join(', ') + '), retrying once');
+          await delay(400, undefined, { signal: abortSignal });
+          continue;
+        }
+        throw new LlmError(502, 'could not reach the LLM gateway: ' + err.message + (codes.length ? ' (' + codes.join(', ') + ')' : ''), { cause: err });
+      }
     }
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -104,9 +124,11 @@ export async function streamAnswer({
       }
     }
   } catch (err) {
+    if (signal?.aborted) throw new LlmError(499, 'chat request was cancelled', { cause: err });
     if (err instanceof LlmError) throw err;
-    if (ctrl.signal.aborted && !signal?.aborted) throw new LlmError(504, 'the LLM call timed out after ' + Math.round(timeoutMs / 1000) + 's');
-    throw new LlmError(502, 'LLM stream failed: ' + (err?.message || err));
+    if (ctrl.signal.aborted) throw new LlmError(504, 'the LLM call timed out after ' + Math.round(timeoutMs / 1000) + 's', { cause: err });
+    const codes = networkCodes(err);
+    throw new LlmError(502, 'LLM stream failed: ' + (err?.message || err) + (codes.length ? ' (' + codes.join(', ') + ')' : ''), { cause: err });
   } finally {
     clearTimeout(timer);
     chatLimiter.release();
