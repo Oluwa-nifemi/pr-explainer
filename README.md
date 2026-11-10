@@ -1,3 +1,17 @@
+
+
+https://github.com/user-attachments/assets/550eb711-e193-4f28-9151-b25ca50ac077
+
+
+
+https://github.com/user-attachments/assets/8ea76f7c-e585-44c9-b204-d5f8ab325938
+
+
+
+https://github.com/user-attachments/assets/f798ded0-5c45-43e8-a12b-6b1d76d108b2
+
+
+
 # PR Explainer
 
 Read a pull request in the order it makes sense, with a short orientation for each step, before you read the code.
