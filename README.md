@@ -2,12 +2,9 @@
 
 Read a pull request in the order it makes sense, with a short orientation for each step, before you read the code.
 
-<!--
-  HERO VIDEO: drag the mp4 into the GitHub editor, then paste the https://github.com/user-attachments/... link on its own line below.
--->
+[Watch the PR walkthrough](assets/pr-demo.mp4)
 
-> **[ Video 1: walkthrough of a real PR ]**
-> Paste a PR link, open the overview, step through two or three steps, show a diagram, leave a comment.
+Follow a PR from the overview through the review steps, diagrams and comments.
 
 ## Why it exists
 
@@ -20,36 +17,27 @@ PR Explainer builds it for you:
 - Where a step branches, it draws the control flow. It never draws diagrams of how code is organised.
 - It does not retell the diff, and it does not hunt for bugs. Your CI and your own eyes do that. You still read the code.
 
-## See it
+## See it in action
+
+**PR walkthrough.**
+
+[Watch the demo](assets/pr-demo.mp4), using [budget-bot #1](https://github.com/Oluwa-nifemi/budget-bot/pull/1).
 
 **Generation.**
 
-> **[ Video 2: generating a story ]**
-> Open a new PR and show the story appearing: summary, plan, then the steps filling in. Show how long it takes.
+[Watch a story generate at 3× speed](assets/generation-demo-3x.mp4).
+
+From pasting a PR link to the finished walkthrough. This recording is sped up 3×.
 
 **Settings.**
 
-> **[ Video 3: settings ]**
-> Open Settings, edit the worker prompt, change how many diagrams you want, add a file to ignore, then Regenerate.
+[Watch the settings demo](assets/settings-demo.mp4).
+
+Edit the worker prompt, choose how many diagrams you want, and change file rules.
 
 ## How it works
 
-```mermaid
-flowchart LR
-  A["Read the PR<br/>diff and details"] --> B["Drop the noise<br/>lockfiles, snapshots, generated"]
-  B --> C["Cut big hunks"]
-  C --> D["Fetch the code<br/>head and base commits"]
-  D --> P["Planner<br/>groups hunks into steps"]
-  D --> S["Summary agent"]
-  P -->|steps stream out| W["Workers<br/>one per step, in parallel"]
-  W --> K["Checks in code"]
-  S --> K
-  K --> R["Story"]
-  classDef model fill:#e3e9f4,stroke:#3b5f9c,color:#1e1b16;
-  classDef result fill:#e4f0df,stroke:#2c7a4b,color:#1e1b16;
-  class C,P,S,W model;
-  class R result;
-```
+![How a PR story is made, from reading the diff to parallel model calls, checks and the saved story](assets/how-it-works.svg)
 
 Blue boxes are model calls. The rest is plain code. The planner streams its steps, so a worker starts on each step as soon as it arrives. A worker sees only its own step, plus code context that was read by code and not by the model: the old version of changed functions, callers of changed names, and the functions they call. After the models answer, code checks the result. Every hunk must be in exactly one step, gists and diagrams must follow the rules, and anything that breaks them is fixed once or dropped.
 
@@ -60,7 +48,7 @@ You need Docker, a GitHub token and a [LiteLLM](https://github.com/BerriAI/litel
 1. Clone the repo and copy the example settings:
 
    ```sh
-   git clone <this repo>
+   git clone https://github.com/Oluwa-nifemi/pr-explainer.git
    cd pr-explainer
    cp .env.example .env
    ```

@@ -6,3 +6,6 @@ dist/
 .DS_Store
 *.log
 logs/
+/PR Demo.mov
+/Settings Demo.mov
+/Generation demo.mov
