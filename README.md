@@ -1,24 +1,6 @@
-
-
-https://github.com/user-attachments/assets/550eb711-e193-4f28-9151-b25ca50ac077
-
-
-
-https://github.com/user-attachments/assets/8ea76f7c-e585-44c9-b204-d5f8ab325938
-
-
-
-https://github.com/user-attachments/assets/f798ded0-5c45-43e8-a12b-6b1d76d108b2
-
-
-
 # PR Explainer
 
 Read a pull request in the order it makes sense, with a short orientation for each step, before you read the code.
-
-[Watch the PR walkthrough](assets/pr-demo.mp4)
-
-Follow a PR from the overview through the review steps, diagrams and comments.
 
 ## Why it exists
 
@@ -35,19 +17,21 @@ PR Explainer builds it for you:
 
 **PR walkthrough.**
 
-[Watch the demo](assets/pr-demo.mp4), using [budget-bot #1](https://github.com/Oluwa-nifemi/budget-bot/pull/1).
+Follow [budget-bot #1](https://github.com/Oluwa-nifemi/budget-bot/pull/1) from the overview through the review steps, diagrams and comments.
+
+https://github.com/user-attachments/assets/f798ded0-5c45-43e8-a12b-6b1d76d108b2
 
 **Generation.**
 
-[Watch a story generate at 3× speed](assets/generation-demo-3x.mp4).
-
 From pasting a PR link to the finished walkthrough. This recording is sped up 3×.
+
+https://github.com/user-attachments/assets/8ea76f7c-e585-44c9-b204-d5f8ab325938
 
 **Settings.**
 
-[Watch the settings demo](assets/settings-demo.mp4).
-
 Edit the worker prompt, choose how many diagrams you want, and change file rules.
+
+https://github.com/user-attachments/assets/550eb711-e193-4f28-9151-b25ca50ac077
 
 ## How it works
 
