@@ -145,8 +145,12 @@ function LivePage({ prKey }) {
       lastFocus = Date.now();
       loadThreads(true);
     };
+    const onRegenerate = () => {
+      setStory((s) => s && { ...s, regenerating: true });
+      refetch();
+    };
     window.addEventListener("focus", onFocus);
-    window.addEventListener("prx-regen", refetch);
+    window.addEventListener("prx-regen", onRegenerate);
     const waitForStory = async () => {
       for (let i = 0; i < 75 && !dead; i++) {
         try {
@@ -172,7 +176,7 @@ function LivePage({ prKey }) {
       dead = true;
       close();
       window.removeEventListener("focus", onFocus);
-      window.removeEventListener("prx-regen", refetch);
+      window.removeEventListener("prx-regen", onRegenerate);
       abortChat();
       live.story = null;
       live.prKey = null;
@@ -310,35 +314,38 @@ function StoryPage({ route }) {
   return html`<div class="app"><${Shell} story=${story} elapsed=${elapsed} simulated=${sim.current} /></div>`;
 }
 
-function OutdatedBanner({ story }) {
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (!story.outdated) setBusy(false);
-  }, [story.outdated]);
-  if (!story.outdated && !story.regenerating) return null;
-  const running = busy || story.regenerating;
-  const go = async () => {
-    setBusy(true);
-    try {
-      await regeneratePr(live.prKey);
-      window.dispatchEvent(new Event("prx-regen"));
-    } catch (e) {
-      setBusy(false);
-      toast(e.message, "bad");
-    }
-  };
+function OutdatedBanner({ story, regenerating, onRegenerate }) {
+  if (!story.outdated && !regenerating) return null;
   return html`<div class="outdated-banner">
-    <span>${running ? "Regenerating with the current pipeline. You can keep reading this version." : "Made with an older version of the pipeline."}</span>
-    ${running ? html`<i class="spin tiny"></i>` : html`<button class="btn small" onClick=${go}>Regenerate</button>`}
+    <span>${regenerating ? "Regenerating from the latest PR. You can keep reading this version." : "Made with an older version of the pipeline."}</span>
+    ${regenerating ? html`<i class="spin tiny"></i>` : html`<button class="btn small" disabled=${!onRegenerate || !["done", "failed"].includes(story.generation.status)} onClick=${onRegenerate}>Regenerate</button>`}
   </div>`;
 }
 
 function Shell({ story, elapsed, simulated }) {
   const view = useSession((s) => s.view);
   const asideOpen = useSession((s) => s.asideOpen);
+  const [busy, setBusy] = useState(false);
+  const requesting = useRef(false);
+  const regenerating = busy || story.regenerating;
+  const regenerate = async () => {
+    if (requesting.current || regenerating) return;
+    requesting.current = true;
+    setBusy(true);
+    try {
+      await regeneratePr(live.prKey);
+      window.dispatchEvent(new Event("prx-regen"));
+    } catch (e) {
+      toast(e.message, "bad");
+    } finally {
+      requesting.current = false;
+      setBusy(false);
+    }
+  };
+  const onRegenerate = live.prKey ? regenerate : null;
   return html`
-    <${Header} story=${story} elapsed=${elapsed} simulated=${simulated} navigateHome=${() => navigate("")} />
-    <${OutdatedBanner} story=${story} />
+    <${Header} story=${story} elapsed=${elapsed} simulated=${simulated} regenerating=${regenerating} onRegenerate=${onRegenerate} navigateHome=${() => navigate("")} />
+    <${OutdatedBanner} story=${story} regenerating=${regenerating} onRegenerate=${onRegenerate} />
     ${view === "walk"
       ? html`<div class="walk"><${Walkthrough} story=${story} /><${Aside} story=${story} mode="walk" /></div>`
       : html`<div class=${"ovl" + (asideOpen ? " with-aside" : "")}><main class="ov-main"><${Overview} story=${story} /></main>${asideOpen ? html`<${Aside} story=${story} mode="overview" />` : null}</div>`}

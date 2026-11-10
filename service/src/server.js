@@ -267,7 +267,11 @@ async function route(req, res) {
   if (match && req.method === 'GET') {
     const [repo, number] = [match[1] + '/' + match[2], Number(match[3])];
     const sha = url.searchParams.get('sha') || jobs.getItem(repo, number)?.headSha || (await store.latestStorySha(repo, number));
-    const story = sha ? await store.readStory(repo, number, sha) : null;
+    let story = sha ? await store.readStory(repo, number, sha) : null;
+    if (!story && !url.searchParams.has('sha')) {
+      const previousSha = await store.latestStorySha(repo, number);
+      if (previousSha) story = await store.readStory(repo, number, previousSha);
+    }
     if (!story) throw new ApiError(404, 'not_found', 'no story for ' + repo + '#' + number);
     sendJson(res, 200, { ...story, outdated: jobs.isOutdated(story), regenerating: jobs.isBusy(repo, number) });
     return;

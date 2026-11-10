@@ -10,7 +10,7 @@ import { CommentCard } from "./Diff.js";
 
 const PHASE = { queued: "Queued", planning: "Planning the review order", explaining: "Writing step gists", done: "Done", failed: "Failed" };
 
-export function Header({ story, elapsed, simulated, navigateHome }) {
+export function Header({ story, elapsed, simulated, regenerating, onRegenerate, navigateHome }) {
   const view = useSession((s) => s.view);
   const reviewed = useSession((s) => s.reviewed);
   const comments = useSession((s) => s.comments);
@@ -52,6 +52,7 @@ export function Header({ story, elapsed, simulated, navigateHome }) {
       </div>
       ${total ? html`<div class="reviewprog" title="Steps you marked as reviewed"><div class="prog-bar"><i style=${{ width: (done / total) * 100 + "%" }}></i></div><span>${done}/${total}</span></div>` : null}
       ${view === "overview" ? html`<button class=${cx("btn ghost", asideOpen && "pressed")} onClick=${() => (asideOpen ? session.set({ asideOpen: false }) : openChat())}>Chat</button>` : null}
+      ${onRegenerate ? html`<button class="btn ghost" disabled=${generating || regenerating} onClick=${onRegenerate} title="Rebuild the explanation from the latest PR commits">${regenerating ? html`<i class="spin tiny"></i>Regenerating…` : "Regenerate"}</button>` : null}
       <button class="btn ghost" onClick=${openSettings}>Settings</button>
       <button class="btn primary" onClick=${() => session.set((s) => ({ review: { ...s.review, open: true } }))}>
         ${review.submitted ? verdictLabel[review.submitted.verdict] : "Review"}${n ? html`<span class="count">${n}</span>` : null}
