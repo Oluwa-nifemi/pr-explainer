@@ -133,15 +133,33 @@ export async function listStoryFiles() {
   return out;
 }
 
-export async function latestStorySha(repo, number) {
+async function storyFiles(repo, number) {
   const { owner, name } = splitRepo(repo);
   const dir = join(storiesRoot, owner, name, String(number));
-  let best = null;
+  const out = [];
   for (const file of await safeReaddir(dir)) {
     if (!file.isFile() || !file.name.endsWith('.json')) continue;
     const info = await stat(join(dir, file.name)).catch(() => null);
-    if (!info) continue;
-    if (!best || info.mtimeMs > best.mtimeMs) best = { sha: file.name.slice(0, -5), mtimeMs: info.mtimeMs };
+    if (info) out.push({ sha: file.name.slice(0, -5), mtimeMs: info.mtimeMs });
   }
-  return best?.sha || null;
+  return out.sort((a, b) => b.mtimeMs - a.mtimeMs);
+}
+
+export async function latestStorySha(repo, number) {
+  return (await storyFiles(repo, number))[0]?.sha || null;
+}
+
+// Done or failed. Either way the story stopped growing.
+export function isFinished(story) {
+  const status = story?.generation?.status;
+  return status === 'done' || status === 'failed';
+}
+
+// The newest finished story, skipping any story that is still being written.
+export async function latestFinishedStory(repo, number) {
+  for (const file of await storyFiles(repo, number)) {
+    const story = await readStory(repo, number, file.sha);
+    if (isFinished(story)) return story;
+  }
+  return null;
 }

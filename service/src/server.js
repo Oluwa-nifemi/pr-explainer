@@ -90,6 +90,14 @@ async function currentStory(repo, number) {
   return store.readStory(repo, number, sha);
 }
 
+// While a new story is being written, keep serving the last one that finished, so the reader
+// keeps a whole story instead of a half built one.
+async function readableStory(repo, number) {
+  const story = await currentStory(repo, number);
+  if (store.isFinished(story)) return story;
+  return (await store.latestFinishedStory(repo, number)) || story;
+}
+
 async function handleEvents(req, res, repo, number) {
   res.writeHead(200, {
     ...CORS,
@@ -266,12 +274,8 @@ async function route(req, res) {
   let match = path.match(/^\/api\/prs\/([^/]+)\/([^/]+)\/(\d+)\/story$/);
   if (match && req.method === 'GET') {
     const [repo, number] = [match[1] + '/' + match[2], Number(match[3])];
-    const sha = url.searchParams.get('sha') || jobs.getItem(repo, number)?.headSha || (await store.latestStorySha(repo, number));
-    let story = sha ? await store.readStory(repo, number, sha) : null;
-    if (!story && !url.searchParams.has('sha')) {
-      const previousSha = await store.latestStorySha(repo, number);
-      if (previousSha) story = await store.readStory(repo, number, previousSha);
-    }
+    const asked = url.searchParams.get('sha');
+    const story = asked ? await store.readStory(repo, number, asked) : await readableStory(repo, number);
     if (!story) throw new ApiError(404, 'not_found', 'no story for ' + repo + '#' + number);
     sendJson(res, 200, { ...story, outdated: jobs.isOutdated(story), regenerating: jobs.isBusy(repo, number) });
     return;
