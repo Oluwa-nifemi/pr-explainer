@@ -277,7 +277,12 @@ async function route(req, res) {
     const asked = url.searchParams.get('sha');
     const story = asked ? await store.readStory(repo, number, asked) : await readableStory(repo, number);
     if (!story) throw new ApiError(404, 'not_found', 'no story for ' + repo + '#' + number);
-    sendJson(res, 200, { ...story, outdated: jobs.isOutdated(story), regenerating: jobs.isBusy(repo, number) });
+    sendJson(res, 200, {
+      ...story,
+      outdated: jobs.isOutdated(story),
+      regenerating: jobs.isBusy(repo, number),
+      headChanged: jobs.headChanged(story),
+    });
     return;
   }
 

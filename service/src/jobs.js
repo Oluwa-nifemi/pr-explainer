@@ -26,6 +26,13 @@ export function isOutdated(story) {
   return Boolean(story) && story.generation?.status === 'done' && story.generation?.pipelineVersion !== pipelineVersion();
 }
 
+// A saved story is written against the head it was made from. When the PR has newer commits,
+// the story on screen is the old one and a new story is on its way.
+export function headChanged(story) {
+  const item = story?.pr?.repo ? items.get(key(story.pr.repo, story.pr.number)) : null;
+  return Boolean(item?.headSha && story?.pr?.headSha && item.headSha !== story.pr.headSha);
+}
+
 function normalizeItem(item) {
   return {
     repo: String(item.repo),

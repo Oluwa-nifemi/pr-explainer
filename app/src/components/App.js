@@ -315,10 +315,19 @@ function StoryPage({ route }) {
 }
 
 function OutdatedBanner({ story, regenerating, onRegenerate }) {
-  if (!story.outdated && !regenerating) return null;
+  const readable = ["done", "failed"].includes(story.generation.status);
+  const replacing = regenerating && readable;
+  if (!story.outdated && !story.headChanged && !replacing) return null;
+  const message = story.headChanged
+    ? replacing
+      ? "This PR has new commits. Making a fresh story. You can keep reading this version."
+      : "This PR has new commits since this story was made."
+    : replacing
+      ? "Making a fresh story with the latest pipeline. You can keep reading this version."
+      : "Made with an older version of the pipeline.";
   return html`<div class="outdated-banner">
-    <span>${regenerating ? "Regenerating from the latest PR. You can keep reading this version." : "Made with an older version of the pipeline."}</span>
-    ${regenerating ? html`<i class="spin tiny"></i>` : html`<button class="btn small" disabled=${!onRegenerate || !["done", "failed"].includes(story.generation.status)} onClick=${onRegenerate}>Regenerate</button>`}
+    <span>${message}</span>
+    ${regenerating ? html`<i class="spin tiny"></i>` : html`<button class="btn small" disabled=${!onRegenerate || !readable} onClick=${onRegenerate}>Regenerate</button>`}
   </div>`;
 }
 
