@@ -37,7 +37,7 @@ const where = (c) => {
 };
 
 // An exported file has no service behind it, so the review is shown in the page and leaves as markdown to paste into GitHub.
-export async function buildReview(story, { comments, summary, verdict }) {
+export async function buildReview(story, { comments, summary }) {
   const links = {};
   for (const c of comments) links[c.id] = await lineUrl(story, c);
   const items = comments.map((c) => ({
@@ -48,7 +48,7 @@ export async function buildReview(story, { comments, summary, verdict }) {
     body: (c.body || "").trim(),
     href: links[c.id],
   }));
-  const head = [`**${story.pr.repo} #${story.pr.number}** · ${verdict}`, prUrl(story), (summary || "").trim()].filter(Boolean).join("\n\n");
+  const head = [`**${story.pr.repo} #${story.pr.number}**`, prUrl(story), (summary || "").trim()].filter(Boolean).join("\n\n");
   const blocks = items.map((it) =>
     ["**" + it.where + "**", it.code ? "```" + it.lang + "\n" + it.code + "\n```" : "", it.body, it.href ? "[Open on GitHub](" + it.href + ")" : ""]
       .filter(Boolean)

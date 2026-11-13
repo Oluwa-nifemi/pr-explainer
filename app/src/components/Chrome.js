@@ -133,8 +133,7 @@ export function ReviewDialog({ story }) {
   useEffect(() => {
     if (!exporting || !review.open) return;
     let alive = true;
-    const verdict = VERDICTS.find((v) => v[0] === review.verdict)?.[1] || "Comment";
-    buildReview(story, { comments: drafts, summary: review.summary, verdict })
+    buildReview(story, { comments: drafts, summary: review.summary })
       .then((r) => alive && setHandover(r))
       .catch(() => alive && setHandover(null));
     return () => {
@@ -245,14 +244,16 @@ export function ReviewDialog({ story }) {
             <h2>${exporting ? "Your review" : "Finish your review"}</h2>
             <button class="icon-btn" aria-label="Close" onClick=${close}>×</button>
           </header>
-          <div class="verdicts" role="radiogroup">
-            ${VERDICTS.map(
-              ([id, name, hint]) => html`<label class=${cx("verdict", "v-" + id, review.verdict === id && "on")}>
-                <input type="radio" name="verdict" checked=${review.verdict === id} onChange=${() => set({ verdict: id })} />
-                <b>${name}</b><span>${hint}</span>
-              </label>`
-            )}
-          </div>
+          ${exporting
+            ? null
+            : html`<div class="verdicts" role="radiogroup">
+                ${VERDICTS.map(
+                  ([id, name, hint]) => html`<label class=${cx("verdict", "v-" + id, review.verdict === id && "on")}>
+                    <input type="radio" name="verdict" checked=${review.verdict === id} onChange=${() => set({ verdict: id })} />
+                    <b>${name}</b><span>${hint}</span>
+                  </label>`
+                )}
+              </div>`}
           <label class="field">
             <span>Summary</span>
             <textarea ref=${ta} rows=${exporting ? 3 : 6} value=${review.summary} onInput=${(e) => set({ summary: e.currentTarget.value })} placeholder="Say what you found, in a few lines" />
@@ -260,11 +261,11 @@ export function ReviewDialog({ story }) {
           <div class="review-facts">
             ${replyIds.length && !exporting ? html`<div><b>${replyIds.length}</b> thread repl${replyIds.length === 1 ? "y" : "ies"} will be posted</div>` : null}
             ${exporting
-              ? html`<div>This file cannot post to GitHub. Copy the review and paste it there, or follow a comment to its line.</div>`
+              ? html`<div>This file cannot post to GitHub. Copy the review and paste it there, or follow a comment to its line.</div><div><a class="link" href=${story.pr.url} target="_blank" rel="noreferrer">Open the PR on GitHub ↗</a></div>`
               : html`<div><b>${drafts.length}</b> inline comment${drafts.length === 1 ? "" : "s"} will be posted${drafts.some((c) => c.kind === "clarification") ? " (including questions for the author)" : ""}</div>`}
             ${unreviewed ? html`<div class="warn"><b>${unreviewed}</b> of ${story.steps.length} steps are not marked as reviewed</div>` : html`<div class="ok">All ${story.steps.length} steps reviewed</div>`}
           </div>
-          ${exporting ? html`<${ReviewPreview} story=${story} handover=${handover} summary=${review.summary} verdict=${review.verdict} />` : null}
+          ${exporting ? html`<${ReviewPreview} handover=${handover} summary=${review.summary} />` : null}
           ${!exporting && drafts.length
             ? html`<details class="draft-list"><summary>Show the drafts</summary>${drafts.map((c) => html`<${CommentCard} key=${c.id} c=${c} />`)}</details>`
             : null}
@@ -286,20 +287,15 @@ export function ReviewDialog({ story }) {
 }
 
 // An export cannot post, so it shows the review it can copy out, with a way to reach each comment's line.
-function ReviewPreview({ story, handover, summary, verdict }) {
+function ReviewPreview({ handover, summary }) {
   const items = handover?.items || [];
-  const label = VERDICTS.find((v) => v[0] === verdict)?.[1] || "Comment";
   return html`<section class="review-preview" aria-label="Your review">
-    <div class="rvp-head">
-      <span class="rvp-verdict">Review · ${label}</span>
-      <a class="link" href=${story.pr.url} target="_blank" rel="noreferrer">Open the PR on GitHub ↗</a>
-    </div>
     ${summary.trim() ? html`<p class="rvp-summary">${summary.trim()}</p>` : html`<p class="rvp-empty">No summary yet.</p>`}
     ${items.length
       ? items.map(
           (it) => html`<div class="rvp-item" key=${it.id}>
             <div class="rvp-where">
-              <code>${it.where}</code>
+              <code title=${it.where}>${it.where}</code>
               ${it.href ? html`<a class="link" href=${it.href} target="_blank" rel="noreferrer">GitHub ↗</a>` : null}
               <button class="icon-btn" title="Delete draft" aria-label="Delete draft" onClick=${() => removeComment(it.id)}>×</button>
             </div>
