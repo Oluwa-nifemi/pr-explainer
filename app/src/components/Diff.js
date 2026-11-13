@@ -93,7 +93,7 @@ export function ThreadCard({ t }) {
 
 const REACT = { THUMBS_UP: "👍", THUMBS_DOWN: "👎", LAUGH: "😄", HOORAY: "🎉", CONFUSED: "😕", HEART: "❤️", ROCKET: "🚀", EYES: "👀" };
 
-export function CommentCard({ c, onJump, compact }) {
+export function CommentCard({ c, onJump, compact, href }) {
   const author = live.story?.pr.author;
   const me = useSetup().status?.github;
   return html`<div class=${cx("ccard", c.kind === "clarification" && "ask", c.posted && "posted")}>
@@ -107,6 +107,7 @@ export function CommentCard({ c, onJump, compact }) {
     </div>
     <div class="ccard-body">${c.body}</div>
     ${onJump ? html`<button class="link ccard-loc" onClick=${onJump}>${fileName(c.path)}${c.scope === "step" ? "" : isRange(c) ? " " + rangeLabel(c) : ":" + c.line}</button>` : null}
+    ${href ? html`<a class="link ccard-loc" href=${href} target="_blank" rel="noreferrer">Open this file on GitHub ↗</a>` : null}
   </div>`;
 }
 

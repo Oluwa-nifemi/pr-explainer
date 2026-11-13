@@ -6,6 +6,7 @@ import { session, useSession, removeReply, showOverview, goStep, draftCount, ope
 import { postReview, getThreads, replyThread, exportUrl } from "../lib/api.js";
 import { openSettings } from "../lib/setup.js";
 import { isExport } from "../lib/mode.js";
+import { buildReview, downloadMarkdown, reviewFileName } from "../lib/reviewExport.js";
 import { Diagram, DiagramLegend } from "./Diagram.js";
 import { CommentCard } from "./Diff.js";
 
@@ -126,9 +127,23 @@ export function ReviewDialog({ story }) {
   const replyIds = Object.keys(replies);
   const lastAuto = useRef("");
   const ta = useRef(null);
+  const exporting = isExport();
+  const [handover, setHandover] = useState(null);
 
   useEffect(() => {
-    if (!review.open || review.status !== "idle" || live.prKey) return;
+    if (!exporting || !review.open) return;
+    let alive = true;
+    const verdict = VERDICTS.find((v) => v[0] === review.verdict)?.[1] || "Comment";
+    buildReview(story, { comments: drafts, summary: review.summary, verdict })
+      .then((r) => alive && setHandover(r))
+      .catch(() => alive && setHandover(null));
+    return () => {
+      alive = false;
+    };
+  }, [exporting, review.open, drafts.length, review.summary, review.verdict]);
+
+  useEffect(() => {
+    if (!review.open || review.status !== "idle" || live.prKey || isExport()) return;
     const auto = fakeSummary(review.verdict, drafts, story);
     if (!review.summary || review.summary === lastAuto.current) {
       lastAuto.current = auto;
@@ -148,7 +163,17 @@ export function ReviewDialog({ story }) {
   const set = (patch) => session.set((s) => ({ review: { ...s.review, ...patch } }));
   const unreviewed = story.steps.filter((s) => !reviewed[s.id]).length;
 
+  const copyReview = async () => {
+    try {
+      await navigator.clipboard.writeText(handover.text);
+      toast("Review copied as markdown");
+    } catch {
+      toast("Could not copy. Use Download .md instead.", "bad");
+    }
+  };
+
   const submit = async () => {
+    if (exporting) return;
     set({ status: "sending", error: null });
     if (live.prKey) {
       const lineDrafts = drafts.filter((c) => c.path && c.line != null);
@@ -217,7 +242,7 @@ export function ReviewDialog({ story }) {
           </div>`
         : html`
           <header class="modal-head">
-            <h2>Finish your review</h2>
+            <h2>${exporting ? "Take your review to GitHub" : "Finish your review"}</h2>
             <button class="icon-btn" aria-label="Close" onClick=${close}>×</button>
           </header>
           <div class="verdicts" role="radiogroup">
@@ -233,20 +258,28 @@ export function ReviewDialog({ story }) {
             <textarea ref=${ta} rows="6" value=${review.summary} onInput=${(e) => set({ summary: e.currentTarget.value })} placeholder="Say what you found, in a few lines" />
           </label>
           <div class="review-facts">
-            ${replyIds.length ? html`<div><b>${replyIds.length}</b> thread repl${replyIds.length === 1 ? "y" : "ies"} will be posted</div>` : null}
-            <div><b>${drafts.length}</b> inline comment${drafts.length === 1 ? "" : "s"} will be posted${drafts.some((c) => c.kind === "clarification") ? " (including questions for the author)" : ""}</div>
+            ${replyIds.length && !exporting ? html`<div><b>${replyIds.length}</b> thread repl${replyIds.length === 1 ? "y" : "ies"} will be posted</div>` : null}
+            ${exporting
+              ? html`<div><b>${drafts.length}</b> comment${drafts.length === 1 ? "" : "s"} come with you. This file cannot post to GitHub, so copy the review or open each comment there.</div>`
+              : html`<div><b>${drafts.length}</b> inline comment${drafts.length === 1 ? "" : "s"} will be posted${drafts.some((c) => c.kind === "clarification") ? " (including questions for the author)" : ""}</div>`}
             ${unreviewed ? html`<div class="warn"><b>${unreviewed}</b> of ${story.steps.length} steps are not marked as reviewed</div>` : html`<div class="ok">All ${story.steps.length} steps reviewed</div>`}
           </div>
           ${drafts.length
-            ? html`<details class="draft-list"><summary>Show the drafts</summary>${drafts.map((c) => html`<${CommentCard} key=${c.id} c=${c} />`)}</details>`
+            ? html`<details class="draft-list" open=${exporting}><summary>Show the drafts</summary>${drafts.map((c) => html`<${CommentCard} key=${c.id} c=${c} href=${handover?.links[c.id]} />`)}</details>`
             : null}
           ${review.error ? html`<p class="review-error">${review.error}</p>` : null}
-          <footer class="modal-foot">
-            <button class="btn ghost" onClick=${close} disabled=${review.status === "sending"}>Cancel</button>
-            <button class=${cx("btn primary", review.verdict === "request_changes" && "danger")} onClick=${submit} disabled=${review.status === "sending" || !review.summary.trim() && !drafts.length && !replyIds.length}>
-              ${review.status === "sending" ? html`<i class="spin light"></i>Submitting…` : "Submit review"}
-            </button>
-          </footer>`}
+          ${exporting
+            ? html`<footer class="modal-foot">
+                <button class="btn ghost" onClick=${close}>Close</button>
+                <button class="btn ghost" disabled=${!handover} onClick=${copyReview}>Copy as markdown</button>
+                <button class="btn primary" disabled=${!handover} onClick=${() => downloadMarkdown(reviewFileName(story), handover.text)}>Download .md</button>
+              </footer>`
+            : html`<footer class="modal-foot">
+                <button class="btn ghost" onClick=${close} disabled=${review.status === "sending"}>Cancel</button>
+                <button class=${cx("btn primary", review.verdict === "request_changes" && "danger")} onClick=${submit} disabled=${review.status === "sending" || !review.summary.trim() && !drafts.length && !replyIds.length}>
+                  ${review.status === "sending" ? html`<i class="spin light"></i>Submitting…` : "Submit review"}
+                </button>
+              </footer>`}`}
     </div>
   </div>`;
 }

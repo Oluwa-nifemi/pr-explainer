@@ -90,7 +90,9 @@ Export reads the page built by `npm run build:export --prefix app`. Run that onc
 
 Open a PR and pick Export from the `⋯` menu in the header. You get one HTML file with the whole story inside it: the overview, every step, the diagrams, the diffs and the test and doc files. Your draft comments are kept too, in that file's own local storage.
 
-The file works with no service behind it. Open it by double-clicking, or send it to someone. Chat, posting a review and the file lines between hunks need the service, so they are off in an export. The exported story is a snapshot: it does not follow new commits.
+The file works with no service behind it. Open it by double-clicking, or send it to someone. Chat and the file lines between hunks need the service, so they are off in an export. The exported story is a snapshot: it does not follow new commits.
+
+A comment you write in an export stays in that file's local storage, so it survives a reload. An export cannot post to GitHub, so the Review button hands the review over instead: Copy as markdown or Download .md gives you the summary and each comment with its `path:line`, the code it points at, and a link to that file's diff, ready to paste into GitHub's review box. GitHub has no link that fills in a review for you.
 
 ## Features
 
