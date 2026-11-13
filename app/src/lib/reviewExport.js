@@ -36,23 +36,25 @@ const where = (c) => {
   return c.path + ":" + (isRange(c) ? c.startLine + "-" + c.line : c.line);
 };
 
-// An exported file has no service behind it, so the review leaves as markdown the reader pastes into GitHub.
+// An exported file has no service behind it, so the review is shown in the page and leaves as markdown to paste into GitHub.
 export async function buildReview(story, { comments, summary, verdict }) {
   const links = {};
   for (const c of comments) links[c.id] = await lineUrl(story, c);
+  const items = comments.map((c) => ({
+    id: c.id,
+    where: where(c),
+    code: codeAt(story, c),
+    lang: c.path ? langOf(c.path) : "txt",
+    body: (c.body || "").trim(),
+    href: links[c.id],
+  }));
   const head = [`**${story.pr.repo} #${story.pr.number}** · ${verdict}`, prUrl(story), (summary || "").trim()].filter(Boolean).join("\n\n");
-  const blocks = comments.map((c) => {
-    const code = codeAt(story, c);
-    return [
-      "**" + where(c) + "**",
-      code ? "```" + langOf(c.path) + "\n" + code + "\n```" : "",
-      (c.body || "").trim(),
-      links[c.id] ? "[Open on GitHub](" + links[c.id] + ")" : "",
-    ]
+  const blocks = items.map((it) =>
+    ["**" + it.where + "**", it.code ? "```" + it.lang + "\n" + it.code + "\n```" : "", it.body, it.href ? "[Open on GitHub](" + it.href + ")" : ""]
       .filter(Boolean)
-      .join("\n\n");
-  });
-  return { text: [head, ...blocks].join("\n\n---\n\n") + "\n", links };
+      .join("\n\n")
+  );
+  return { text: [head, ...blocks].join("\n\n---\n\n") + "\n", links, items };
 }
 
 export function downloadMarkdown(name, text) {

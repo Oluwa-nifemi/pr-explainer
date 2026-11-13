@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { cx, fmtSec, sleep } from "../lib/util.js";
 import { fakeSummary } from "../lib/chat.js";
-import { session, useSession, removeReply, showOverview, goStep, draftCount, openChat, toast, jumpToNode, nodeIsLinked, live } from "../lib/session.js";
+import { session, useSession, removeReply, removeComment, showOverview, goStep, draftCount, openChat, toast, jumpToNode, nodeIsLinked, live } from "../lib/session.js";
 import { postReview, getThreads, replyThread, exportUrl } from "../lib/api.js";
 import { openSettings } from "../lib/setup.js";
 import { isExport } from "../lib/mode.js";
@@ -242,7 +242,7 @@ export function ReviewDialog({ story }) {
           </div>`
         : html`
           <header class="modal-head">
-            <h2>${exporting ? "Take your review to GitHub" : "Finish your review"}</h2>
+            <h2>${exporting ? "Your review" : "Finish your review"}</h2>
             <button class="icon-btn" aria-label="Close" onClick=${close}>×</button>
           </header>
           <div class="verdicts" role="radiogroup">
@@ -255,24 +255,25 @@ export function ReviewDialog({ story }) {
           </div>
           <label class="field">
             <span>Summary</span>
-            <textarea ref=${ta} rows="6" value=${review.summary} onInput=${(e) => set({ summary: e.currentTarget.value })} placeholder="Say what you found, in a few lines" />
+            <textarea ref=${ta} rows=${exporting ? 3 : 6} value=${review.summary} onInput=${(e) => set({ summary: e.currentTarget.value })} placeholder="Say what you found, in a few lines" />
           </label>
           <div class="review-facts">
             ${replyIds.length && !exporting ? html`<div><b>${replyIds.length}</b> thread repl${replyIds.length === 1 ? "y" : "ies"} will be posted</div>` : null}
             ${exporting
-              ? html`<div><b>${drafts.length}</b> comment${drafts.length === 1 ? "" : "s"} come with you. This file cannot post to GitHub, so copy the review or open each comment there.</div>`
+              ? html`<div>This file cannot post to GitHub. Copy the review and paste it there, or follow a comment to its line.</div>`
               : html`<div><b>${drafts.length}</b> inline comment${drafts.length === 1 ? "" : "s"} will be posted${drafts.some((c) => c.kind === "clarification") ? " (including questions for the author)" : ""}</div>`}
             ${unreviewed ? html`<div class="warn"><b>${unreviewed}</b> of ${story.steps.length} steps are not marked as reviewed</div>` : html`<div class="ok">All ${story.steps.length} steps reviewed</div>`}
           </div>
-          ${drafts.length
-            ? html`<details class="draft-list" open=${exporting}><summary>Show the drafts</summary>${drafts.map((c) => html`<${CommentCard} key=${c.id} c=${c} href=${handover?.links[c.id]} />`)}</details>`
+          ${exporting ? html`<${ReviewPreview} story=${story} handover=${handover} summary=${review.summary} verdict=${review.verdict} />` : null}
+          ${!exporting && drafts.length
+            ? html`<details class="draft-list"><summary>Show the drafts</summary>${drafts.map((c) => html`<${CommentCard} key=${c.id} c=${c} />`)}</details>`
             : null}
           ${review.error ? html`<p class="review-error">${review.error}</p>` : null}
           ${exporting
             ? html`<footer class="modal-foot">
                 <button class="btn ghost" onClick=${close}>Close</button>
-                <button class="btn ghost" disabled=${!handover} onClick=${copyReview}>Copy as markdown</button>
-                <button class="btn primary" disabled=${!handover} onClick=${() => downloadMarkdown(reviewFileName(story), handover.text)}>Download .md</button>
+                <button class="btn ghost" disabled=${!handover} onClick=${() => downloadMarkdown(reviewFileName(story), handover.text)}>Download .md</button>
+                <button class="btn primary" disabled=${!handover} onClick=${copyReview}>Copy as markdown</button>
               </footer>`
             : html`<footer class="modal-foot">
                 <button class="btn ghost" onClick=${close} disabled=${review.status === "sending"}>Cancel</button>
@@ -282,6 +283,32 @@ export function ReviewDialog({ story }) {
               </footer>`}`}
     </div>
   </div>`;
+}
+
+// An export cannot post, so it shows the review it can copy out, with a way to reach each comment's line.
+function ReviewPreview({ story, handover, summary, verdict }) {
+  const items = handover?.items || [];
+  const label = VERDICTS.find((v) => v[0] === verdict)?.[1] || "Comment";
+  return html`<section class="review-preview" aria-label="Your review">
+    <div class="rvp-head">
+      <span class="rvp-verdict">Review · ${label}</span>
+      <a class="link" href=${story.pr.url} target="_blank" rel="noreferrer">Open the PR on GitHub ↗</a>
+    </div>
+    ${summary.trim() ? html`<p class="rvp-summary">${summary.trim()}</p>` : html`<p class="rvp-empty">No summary yet.</p>`}
+    ${items.length
+      ? items.map(
+          (it) => html`<div class="rvp-item" key=${it.id}>
+            <div class="rvp-where">
+              <code>${it.where}</code>
+              ${it.href ? html`<a class="link" href=${it.href} target="_blank" rel="noreferrer">GitHub ↗</a>` : null}
+              <button class="icon-btn" title="Delete draft" aria-label="Delete draft" onClick=${() => removeComment(it.id)}>×</button>
+            </div>
+            ${it.code ? html`<pre class="rvp-code"><code>${it.code}</code></pre>` : null}
+            <p class="rvp-body">${it.body}</p>
+          </div>`
+        )
+      : html`<p class="rvp-empty">No comments yet. Click a line in the diff to add one.</p>`}
+  </section>`;
 }
 
 // ---------- large diagram ----------
