@@ -1,5 +1,7 @@
 import './logfile.js';
 import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import * as store from './store.js';
 import * as gh from './gh.js';
@@ -96,6 +98,35 @@ async function readableStory(repo, number) {
   const story = await currentStory(repo, number);
   if (store.isFinished(story)) return story;
   return (await store.latestFinishedStory(repo, number)) || story;
+}
+
+// The export build makes one HTML file with the app, the styles and the fonts inlined.
+const EXPORT_PAGE = fileURLToPath(new URL('../../app/dist-export/export.html', import.meta.url));
+const escapeHtml = (s) =>
+  String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+async function sendExport(res, repo, number) {
+  const story = await readableStory(repo, number);
+  if (!story) throw new ApiError(404, 'not_found', 'no story for ' + repo + '#' + number);
+  if (!store.isFinished(story)) throw new ApiError(409, 'not_ready', 'the story is still being written');
+  let page;
+  try {
+    page = await readFile(EXPORT_PAGE, 'utf8');
+  } catch {
+    throw new ApiError(500, 'export_missing', 'the export page is not built. Run npm run build:export in app/.');
+  }
+  const title = escapeHtml(story.pr.repo + ' #' + story.pr.number + ' · ' + story.pr.title);
+  const payload = JSON.stringify(story).replace(/</g, '\\u003c');
+  const body = page
+    .replace('<title>PR Explainer</title>', '<title>' + title + '</title>')
+    .replace('<!--PRX-STORY-->', '<script>window.__PRX_EXPORT__=' + payload + ';</script>');
+  res.writeHead(200, {
+    ...CORS,
+    'Content-Type': 'text/html; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'Content-Disposition': 'attachment; filename="' + story.pr.repo.replace('/', '-') + '-' + story.pr.number + '-explainer.html"',
+  });
+  res.end(body);
 }
 
 async function handleEvents(req, res, repo, number) {
@@ -283,6 +314,12 @@ async function route(req, res) {
       regenerating: jobs.isBusy(repo, number),
       headChanged: jobs.headChanged(story),
     });
+    return;
+  }
+
+  match = path.match(/^\/api\/prs\/([^/]+)\/([^/]+)\/(\d+)\/export$/);
+  if (match && req.method === 'GET') {
+    await sendExport(res, match[1] + '/' + match[2], Number(match[3]));
     return;
   }
 

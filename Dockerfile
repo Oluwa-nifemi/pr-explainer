@@ -14,7 +14,7 @@ RUN npm ci --prefix pipeline && npm ci --prefix app
 COPY pipeline pipeline
 COPY service service
 COPY app app
-RUN npm run build --prefix app
+RUN npm run build --prefix app && npm run build:export --prefix app
 
 RUN mkdir -p /home/node/.config/pr-explainer /home/node/.cache/pr-explainer \
   && chown -R node:node /home/node /srv/pr-explainer/app/node_modules /srv/pr-explainer/app/dist
