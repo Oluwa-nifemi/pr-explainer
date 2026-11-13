@@ -54,16 +54,58 @@ export function Header({ story, elapsed, simulated, regenerating, onRegenerate, 
         ${generating ? html`<span class="elapsed">${fmtSec(elapsed)}</span>` : null}
       </div>
       ${total ? html`<div class="reviewprog" title="Steps you marked as reviewed"><div class="prog-bar"><i style=${{ width: (done / total) * 100 + "%" }}></i></div><span>${done}/${total}</span></div>` : null}
-      ${view === "overview" && !isExport() ? html`<button class=${cx("btn ghost", asideOpen && "pressed")} onClick=${() => (asideOpen ? session.set({ asideOpen: false }) : openChat())}>Chat</button>` : null}
-      ${onRegenerate ? html`<button class="btn ghost" disabled=${generating || regenerating} onClick=${onRegenerate} title="Rebuild the explanation from the latest PR commits">${regenerating ? html`<i class="spin tiny"></i>Regenerating…` : "Regenerate"}</button>` : null}
-      ${live.prKey && !isExport() ? html`<a class="btn ghost" href=${exportUrl(live.prKey)} title="Download this story as one HTML file you can send to someone">Export</a>` : null}
-      ${isExport() ? null : html`<button class="btn ghost" onClick=${openSettings}>Settings</button>`}
+      ${isExport()
+        ? null
+        : html`<${TopMenu} story=${story} view=${view} asideOpen=${asideOpen} generating=${generating} regenerating=${regenerating} onRegenerate=${onRegenerate} />`}
       <button class="btn primary" onClick=${() => session.set((s) => ({ review: { ...s.review, open: true } }))}>
         ${review.submitted ? verdictLabel[review.submitted.verdict] : "Review"}${n ? html`<span class="count">${n}</span>` : null}
       </button>
     </div>
     ${generating || gen.status === "done" && simulated && elapsed < (story.generation.timings?.totalMs || 0) + 1200 ? html`<div class="genbar"><i style=${{ width: pct + "%" }}></i></div>` : null}
   </header>`;
+}
+
+// ---------- top bar menu ----------
+function TopMenu({ story, view, asideOpen, generating, regenerating, onRegenerate }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => !wrap.current?.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const chat = view === "overview";
+  const item = (label, onClick, { tick, busy, disabled, title } = {}) =>
+    html`<button class="menu-item" role="menuitem" disabled=${disabled} title=${title} onClick=${() => (setOpen(false), onClick())}>
+      <span>${label}</span>
+      ${busy ? html`<i class="spin tiny"></i>` : null}
+      ${tick ? html`<span class="menu-tick" aria-hidden="true">✓</span>` : null}
+    </button>`;
+  const rs = [chat ? item("Chat", () => (asideOpen ? session.set({ asideOpen: false }) : openChat()), { tick: asideOpen }) : null];
+  const tools = [
+    onRegenerate ? item(regenerating ? "Regenerating…" : "Regenerate", onRegenerate, { busy: regenerating, disabled: generating || regenerating, title: "Rebuild the explanation from the latest PR commits" }) : null,
+    live.prKey
+      ? html`<a class="menu-item" role="menuitem" href=${exportUrl(live.prKey)} title="Download this story as one HTML file you can send to someone" onClick=${() => setOpen(false)}>Export</a>`
+      : null,
+    item("Settings", openSettings),
+  ].filter(Boolean);
+  return html`<div class="menu-wrap" ref=${wrap}>
+    <button class="btn ghost menu-btn" aria-haspopup="menu" aria-expanded=${open} aria-label="More actions" title="More actions" onClick=${() => setOpen(!open)}>⋯</button>
+    ${open
+      ? html`<div class="menu" role="menu" aria-label="More actions">
+          ${rs}
+          ${rs.some(Boolean) && tools.length ? html`<div class="menu-sep"></div>` : null}
+          ${tools}
+        </div>`
+      : null}
+  </div>`;
 }
 
 // ---------- review dialog ----------

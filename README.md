@@ -82,13 +82,13 @@ cd app && npm install && npm run dev   # port 5180
 
 Needs Node 22 and git. Stop the containers first, they use the same ports.
 
-The Export button reads the page built by `npm run build:export --prefix app`. Run that once, or the button answers with a 500.
+Export reads the page built by `npm run build:export --prefix app`. Run that once, or it answers with a 500.
 
 </details>
 
 ## Export a story
 
-Open a PR and click Export in the header. You get one HTML file with the whole story inside it: the overview, every step, the diagrams, the diffs and the test and doc files. Your draft comments are kept too, in that file's own local storage.
+Open a PR and pick Export from the `⋯` menu in the header. You get one HTML file with the whole story inside it: the overview, every step, the diagrams, the diffs and the test and doc files. Your draft comments are kept too, in that file's own local storage.
 
 The file works with no service behind it. Open it by double-clicking, or send it to someone. Chat, posting a review and the file lines between hunks need the service, so they are off in an export. The exported story is a snapshot: it does not follow new commits.
 
