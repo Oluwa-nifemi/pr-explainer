@@ -16,18 +16,30 @@ async function lineUrl(story, c) {
   return `${base}/files#diff-${await sha256(c.path)}${side}${c.line}`;
 }
 
+// A snippet starts mid-function, so drop the indent it shares and let it read flush left.
+const dedent = (text) => {
+  const lines = text.split("\n");
+  const filled = lines.filter((l) => l.trim());
+  if (!filled.length) return text;
+  let prefix = filled[0].match(/^\s*/)[0];
+  for (const l of filled) while (prefix && !l.startsWith(prefix)) prefix = prefix.slice(0, -1);
+  return lines.map((l) => l.slice(prefix.length)).join("\n");
+};
+
 const codeAt = (story, c) => {
   if (c.line == null) return "";
   const hunk = story.steps.flatMap((s) => s.hunks || []).find((h) => h.id === c.hunkId);
   if (!hunk) return "";
   const side = c.side || "RIGHT";
   const lo = c.startLine ?? c.line;
-  return parsePatch(hunk.patch)
-    .filter((l) => l.type !== "meta")
-    .map((l) => ({ side: l.type === "del" ? "LEFT" : "RIGHT", no: l.type === "del" ? l.old : l.new, text: l.text }))
-    .filter((l) => l.side === side && l.no >= lo && l.no <= c.line)
-    .map((l) => l.text)
-    .join("\n");
+  return dedent(
+    parsePatch(hunk.patch)
+      .filter((l) => l.type !== "meta")
+      .map((l) => ({ side: l.type === "del" ? "LEFT" : "RIGHT", no: l.type === "del" ? l.old : l.new, text: l.text }))
+      .filter((l) => l.side === side && l.no >= lo && l.no <= c.line)
+      .map((l) => l.text)
+      .join("\n")
+  );
 };
 
 const where = (c) => {

@@ -261,11 +261,11 @@ export function ReviewDialog({ story }) {
           <div class="review-facts">
             ${replyIds.length && !exporting ? html`<div><b>${replyIds.length}</b> thread repl${replyIds.length === 1 ? "y" : "ies"} will be posted</div>` : null}
             ${exporting
-              ? html`<div>This file cannot post to GitHub. Copy the review and paste it there, or follow a comment to its line.</div><div><a class="link" href=${story.pr.url} target="_blank" rel="noreferrer">Open the PR on GitHub ↗</a></div>`
+              ? html`<div>Copy this and paste it on GitHub. <a class="link" href=${story.pr.url} target="_blank" rel="noreferrer">Open the PR ↗</a></div>`
               : html`<div><b>${drafts.length}</b> inline comment${drafts.length === 1 ? "" : "s"} will be posted${drafts.some((c) => c.kind === "clarification") ? " (including questions for the author)" : ""}</div>`}
-            ${unreviewed ? html`<div class="warn"><b>${unreviewed}</b> of ${story.steps.length} steps are not marked as reviewed</div>` : html`<div class="ok">All ${story.steps.length} steps reviewed</div>`}
+            ${exporting ? null : unreviewed ? html`<div class="warn"><b>${unreviewed}</b> of ${story.steps.length} steps are not marked as reviewed</div>` : html`<div class="ok">All ${story.steps.length} steps reviewed</div>`}
           </div>
-          ${exporting ? html`<${ReviewPreview} handover=${handover} summary=${review.summary} />` : null}
+          ${exporting ? html`<${ReviewPreview} handover=${handover} />` : null}
           ${!exporting && drafts.length
             ? html`<details class="draft-list"><summary>Show the drafts</summary>${drafts.map((c) => html`<${CommentCard} key=${c.id} c=${c} />`)}</details>`
             : null}
@@ -287,23 +287,21 @@ export function ReviewDialog({ story }) {
 }
 
 // An export cannot post, so it shows the review it can copy out, with a way to reach each comment's line.
-function ReviewPreview({ handover, summary }) {
+function ReviewPreview({ handover }) {
   const items = handover?.items || [];
+  if (!items.length) return html`<p class="rvp-empty">No comments yet. Click a line in the diff to add one.</p>`;
   return html`<section class="review-preview" aria-label="Your review">
-    ${summary.trim() ? html`<p class="rvp-summary">${summary.trim()}</p>` : html`<p class="rvp-empty">No summary yet.</p>`}
-    ${items.length
-      ? items.map(
-          (it) => html`<div class="rvp-item" key=${it.id}>
-            <div class="rvp-where">
-              <code title=${it.where}>${it.where}</code>
-              ${it.href ? html`<a class="link" href=${it.href} target="_blank" rel="noreferrer">GitHub ↗</a>` : null}
-              <button class="icon-btn" title="Delete draft" aria-label="Delete draft" onClick=${() => removeComment(it.id)}>×</button>
-            </div>
-            ${it.code ? html`<pre class="rvp-code"><code>${it.code}</code></pre>` : null}
-            <p class="rvp-body">${it.body}</p>
-          </div>`
-        )
-      : html`<p class="rvp-empty">No comments yet. Click a line in the diff to add one.</p>`}
+    ${items.map(
+      (it) => html`<div class="rvp-item" key=${it.id}>
+        <div class="rvp-where">
+          <code title=${it.where}>${it.where}</code>
+          ${it.href ? html`<a class="link" href=${it.href} target="_blank" rel="noreferrer">GitHub ↗</a>` : null}
+          <button class="icon-btn" title="Delete draft" aria-label="Delete draft" onClick=${() => removeComment(it.id)}>×</button>
+        </div>
+        ${it.code ? html`<pre class="rvp-code"><code>${it.code}</code></pre>` : null}
+        <p class="rvp-body">${it.body}</p>
+      </div>`
+    )}
   </section>`;
 }
 
