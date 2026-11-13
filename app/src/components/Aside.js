@@ -4,6 +4,7 @@ import { session, useSession, goStep, jumpToLine, draftCount, removeReply } from
 import { StepTab, FilesTab } from "./StepTab.js";
 import { CommentCard } from "./Diff.js";
 import { ChatPanel } from "./Chat.js";
+import { isExport } from "../lib/mode.js";
 
 // ---------- plan tab ----------
 function PlanTab({ story }) {
@@ -86,14 +87,15 @@ export function Aside({ story, mode }) {
   const comments = useSession((s) => s.comments);
   const n = draftCount({ comments });
   const walk = mode === "walk";
-  const active = !walk && ["step", "plan", "files"].includes(tab) ? "chat" : tab;
+  const exported = isExport();
+  const active = exported && tab === "chat" ? "comments" : !walk && ["step", "plan", "files"].includes(tab) ? "chat" : tab;
   const TabBtn = (id, label, badge) => html`<button role="tab" aria-selected=${active === id} class=${cx("tab", active === id && "on")} onClick=${() => session.set({ tab: id })}>${label}${badge ? html`<span class="tab-badge">${badge}</span>` : null}</button>`;
   return html`<aside class=${cx("aside", walk && "is-walk")}>
     <div class="tabs" role="tablist">
       ${walk ? TabBtn("step", "Step") : null}
       ${walk ? TabBtn("plan", "Plan") : null}
       ${walk ? TabBtn("files", "Files") : null}
-      ${TabBtn("chat", "Chat")}
+      ${exported ? null : TabBtn("chat", "Chat")}
       ${TabBtn("comments", "Comments", n || null)}
     </div>
     <div class="tabbody">

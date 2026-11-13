@@ -87,6 +87,7 @@ export async function streamChat(key, request, onEvent, signal) {
 }
 
 export const prPath = (key) => "/api/prs/" + key;
+export const exportUrl = (key) => API + prPath(key) + "/export";
 export const keyOf = (owner, repo, number) => owner + "/" + repo + "/" + number;
 export const urlOf = (key) => "https://github.com/" + key.replace(/\/(\d+)$/, "/pull/$1");
 

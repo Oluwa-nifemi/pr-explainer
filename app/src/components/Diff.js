@@ -6,6 +6,7 @@ import { session, useSession, lineKey, openComposer, closeComposer, addComment, 
 import { cx, dirName, fileName, isRange, memo, rangeLabel } from "../lib/util.js";
 import { getThreads, replyThread, setResolved, setReaction } from "../lib/api.js";
 import { useSetup } from "../lib/setup.js";
+import { isExport } from "../lib/mode.js";
 
 const ago = (iso) => {
   const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
@@ -156,7 +157,7 @@ function Composer({ target }) {
     />
     <div class="composer-row">
       <span class="composer-meta">Draft on ${where}. Only you see it until you submit the review.</span>
-      ${range ? html`<button class="btn ghost" onClick=${ask}>Ask about these lines</button>` : null}
+      ${range && !isExport() ? html`<button class="btn ghost" onClick=${ask}>Ask about these lines</button>` : null}
       <button class="btn ghost" onClick=${cancel}>Cancel</button>
       <button class="btn primary" disabled=${!text.trim()} onClick=${save}>Add draft comment <kbd>⌘↵</kbd></button>
     </div>
@@ -269,7 +270,7 @@ function HunkView({ hunk, step, hideNote }) {
       <code class="hh-range">@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines}</code>
       <span class="hh-ctx">${hunk.header}</span>
       <span class="hh-stats"><b class="plus">+${add}</b> <b class="minus">−${del}</b></span>
-      <button class="link" onClick=${() => askAbout({ type: "hunk", label: `${fileName(hunk.path)} · hunk`, stepId: step.id, hunkId: hunk.id, path: hunk.path, line: hunk.newStart, snippet: hunk.header })}>Ask about this hunk</button>
+      ${isExport() ? null : html`<button class="link" onClick=${() => askAbout({ type: "hunk", label: `${fileName(hunk.path)} · hunk`, stepId: step.id, hunkId: hunk.id, path: hunk.path, line: hunk.newStart, snippet: hunk.header })}>Ask about this hunk</button>`}
       <label class="viewed-toggle"><input type="checkbox" checked=${viewed} onChange=${(e) => setHunksViewed([hunk.id], e.currentTarget.checked)} /><span>Viewed</span></label>
     </div>
     ${viewed ? null : hunk.note && !hideNote ? html`<div class="hunk-note"><span>Note</span>${hunk.note}</div>` : null}
@@ -295,7 +296,7 @@ function HunkView({ hunk, step, hideNote }) {
           >
             <span class="g tools">
               <button class="tool" title="Add comment" aria-label="Add comment on this line" onMouseDown=${(e) => startDrag(l, e)} onClick=${(e) => (e.stopPropagation(), onRow(l, e.shiftKey))}>+</button>
-              <button class="tool ask" title="Ask the assistant about this line" aria-label="Ask about this line" onClick=${(e) => (e.stopPropagation(), askAbout(chipFor(l)))}>?</button>
+              ${isExport() ? null : html`<button class="tool ask" title="Ask the assistant about this line" aria-label="Ask about this line" onClick=${(e) => (e.stopPropagation(), askAbout(chipFor(l)))}>?</button>`}
             </span>
             <span class="g no">${l.old ?? ""}</span>
             <span class="g no">${l.new ?? ""}</span>
@@ -352,7 +353,9 @@ function GapRow({ gapKey, gap, file, path }) {
   const belowLines = ready && below ? file.lines.slice(belowStart - 1, belowStart - 1 + below) : [];
   const row = rest === 0 ? null : html`<div class="gap-row">
     ${total == null ? null : html`<span class="gap-count">${rest} hidden line${rest === 1 ? "" : "s"}</span>`}
-    ${loading
+    ${isExport()
+      ? null
+      : loading
       ? html`<span class="gap-note">Loading lines…</span>`
       : failed
       ? html`<span class="gap-err">Could not load this file. ${file.error || ""}</span><button class="link" onClick=${() => loadFile(path, { force: true })}>Retry</button>`

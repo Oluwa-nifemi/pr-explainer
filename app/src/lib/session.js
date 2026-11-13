@@ -4,7 +4,7 @@ import { nodeTarget } from "./prepare.js";
 import { getFile } from "./api.js";
 
 // The story being viewed. Set by the story page so actions can look up steps and hunks.
-export const live = { story: null, prKey: null };
+export const live = { story: null, prKey: null, exportKey: null };
 
 const initial = () => ({
   view: "overview", // "overview" | "walk"
@@ -50,7 +50,12 @@ export function resetSession() {
 }
 
 // "Viewed" hunks are kept in localStorage per PR, by hunk fingerprint, so they survive a reload and a new push.
-const viewedKey = () => (live.prKey ? "prx.viewed." + live.prKey : null);
+// A story saved to a file has no PR key, so it gets a key of its own.
+const storeKey = (kind) => {
+  const key = live.prKey || live.exportKey;
+  return key ? "prx." + kind + "." + key : null;
+};
+const viewedKey = () => storeKey("viewed");
 let hydratedFor = null;
 let lastViewed = null;
 const readSaved = (key) => {
@@ -63,7 +68,7 @@ const readSaved = (key) => {
 };
 
 // Draft comments are kept in localStorage per PR. Hunks are matched by fingerprint, so a draft follows its code across a new push.
-const draftsKey = () => (live.prKey ? "prx.drafts." + live.prKey : null);
+const draftsKey = () => storeKey("drafts");
 let draftsFor = null;
 let lastComments = null;
 
@@ -100,7 +105,7 @@ export function hydrateDrafts(story) {
   if (restored.length) session.set((s) => ({ comments: [...restored.filter((r) => !s.comments.some((c) => c.id === r.id)), ...s.comments] }));
 }
 
-const repliesKey = () => (live.prKey ? "prx.replies." + live.prKey : null);
+const repliesKey = () => storeKey("replies");
 let lastReplies = null;
 session.sub(() => {
   const key = repliesKey();

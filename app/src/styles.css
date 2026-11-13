@@ -86,6 +86,7 @@ kbd {
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn.ghost:hover:not(:disabled) { background: rgba(60, 50, 30, 0.07); border-color: transparent; }
 .btn.pressed { background: rgba(60, 50, 30, 0.1); }
+a.btn { color: var(--ink); text-decoration: none; }
 .btn.big { padding: 11px 18px; font-size: 15px; border-radius: 10px; }
 .btn.small { padding: 4px 9px; font-size: 12.5px; }
 .btn.wide { width: 100%; justify-content: center; }

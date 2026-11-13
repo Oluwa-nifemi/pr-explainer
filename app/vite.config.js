@@ -7,6 +7,7 @@ import { join } from "node:path";
 // The pipeline writes real stories there; the app loads them with ?story=<name>.
 const PIPELINE_DIR = fileURLToPath(new URL("../pipeline/out", import.meta.url));
 
+
 function pipelineStories() {
   const handler = (req, res, next) => {
     const url = (req.url || "").split("?")[0];
@@ -49,9 +50,48 @@ function pipelineStories() {
   };
 }
 
-export default defineConfig({
-  plugins: [pipelineStories()],
-  server: { host: "127.0.0.1", port: 5180, strictPort: true },
-  preview: { host: "127.0.0.1", port: 5180, strictPort: true },
-  build: { chunkSizeWarningLimit: 900 },
-});
+// The export build writes one HTML file: the app, the styles and the fonts all inlined.
+function singleFile() {
+  const tagFor = (file) => new RegExp('<(?:script|link)[^>]*' + file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + '"[^>]*>(?:</script>)?');
+  return {
+    name: "single-file",
+    enforce: "post",
+    generateBundle(_, bundle) {
+      const page = Object.values(bundle).find((f) => f.fileName.endsWith(".html"));
+      let html = String(page.source);
+      for (const file of Object.values(bundle)) {
+        if (file.fileName === page.fileName) continue;
+        if (file.type === "chunk") {
+          const code = file.code.replace(/<\/script/gi, "<\\/script");
+          html = html.replace(tagFor(file.fileName), () => `<script type="module">${code}</script>`);
+        } else if (file.fileName.endsWith(".css")) {
+          html = html.replace(tagFor(file.fileName), () => `<style>${String(file.source)}</style>`);
+        }
+        delete bundle[file.fileName];
+      }
+      page.source = html;
+    },
+  };
+}
+
+export default defineConfig(({ mode }) =>
+  mode === "export"
+    ? {
+        plugins: [singleFile()],
+        build: {
+          outDir: "dist-export",
+          assetsInlineLimit: 10 * 1024 * 1024,
+          modulePreload: false,
+          rollupOptions: {
+            input: fileURLToPath(new URL("./export.html", import.meta.url)),
+            output: { inlineDynamicImports: true },
+          },
+        },
+      }
+    : {
+        plugins: [pipelineStories()],
+        server: { host: "127.0.0.1", port: 5180, strictPort: true },
+        preview: { host: "127.0.0.1", port: 5180, strictPort: true },
+        build: { chunkSizeWarningLimit: 900 },
+      },
+);

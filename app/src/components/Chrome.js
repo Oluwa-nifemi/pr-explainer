@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { cx, fmtSec, sleep } from "../lib/util.js";
 import { fakeSummary } from "../lib/chat.js";
 import { session, useSession, removeReply, showOverview, goStep, draftCount, openChat, toast, jumpToNode, nodeIsLinked, live } from "../lib/session.js";
-import { postReview, getThreads, replyThread } from "../lib/api.js";
+import { postReview, getThreads, replyThread, exportUrl } from "../lib/api.js";
 import { openSettings } from "../lib/setup.js";
+import { isExport } from "../lib/mode.js";
 import { Diagram, DiagramLegend } from "./Diagram.js";
 import { CommentCard } from "./Diff.js";
 
@@ -36,7 +37,9 @@ export function Header({ story, elapsed, simulated, regenerating, onRegenerate, 
   const verdictLabel = { comment: "Commented", approve: "Approved", request_changes: "Changes requested" };
 
   return html`<header class="topbar">
-    <button class="brand" onClick=${navigateHome} aria-label="Back to start"><span class="brand-mark">¶</span><span>PR Explainer</span></button>
+    ${navigateHome
+      ? html`<button class="brand" onClick=${navigateHome} aria-label="Back to start"><span class="brand-mark">¶</span><span>PR Explainer</span></button>`
+      : html`<span class="brand"><span class="brand-mark">¶</span><span>PR Explainer</span></span>`}
     <div class="crumb" title=${story.pr.title}>
       <a href=${story.pr.url} target="_blank" rel="noreferrer">${story.pr.repo} #${story.pr.number}</a>
     </div>
@@ -51,9 +54,10 @@ export function Header({ story, elapsed, simulated, regenerating, onRegenerate, 
         ${generating ? html`<span class="elapsed">${fmtSec(elapsed)}</span>` : null}
       </div>
       ${total ? html`<div class="reviewprog" title="Steps you marked as reviewed"><div class="prog-bar"><i style=${{ width: (done / total) * 100 + "%" }}></i></div><span>${done}/${total}</span></div>` : null}
-      ${view === "overview" ? html`<button class=${cx("btn ghost", asideOpen && "pressed")} onClick=${() => (asideOpen ? session.set({ asideOpen: false }) : openChat())}>Chat</button>` : null}
+      ${view === "overview" && !isExport() ? html`<button class=${cx("btn ghost", asideOpen && "pressed")} onClick=${() => (asideOpen ? session.set({ asideOpen: false }) : openChat())}>Chat</button>` : null}
       ${onRegenerate ? html`<button class="btn ghost" disabled=${generating || regenerating} onClick=${onRegenerate} title="Rebuild the explanation from the latest PR commits">${regenerating ? html`<i class="spin tiny"></i>Regenerating…` : "Regenerate"}</button>` : null}
-      <button class="btn ghost" onClick=${openSettings}>Settings</button>
+      ${live.prKey && !isExport() ? html`<a class="btn ghost" href=${exportUrl(live.prKey)} title="Download this story as one HTML file you can send to someone">Export</a>` : null}
+      ${isExport() ? null : html`<button class="btn ghost" onClick=${openSettings}>Settings</button>`}
       <button class="btn primary" onClick=${() => session.set((s) => ({ review: { ...s.review, open: true } }))}>
         ${review.submitted ? verdictLabel[review.submitted.verdict] : "Review"}${n ? html`<span class="count">${n}</span>` : null}
       </button>

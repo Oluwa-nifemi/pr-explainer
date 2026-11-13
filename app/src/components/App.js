@@ -13,6 +13,7 @@ import { loadChat, abortChat } from "../lib/chat.js";
 import { makeTimeline, partialStory, hasSeen, markSeen } from "../lib/generation.js";
 import { session, useSession, live, resetSession, goStep, moveStep, toggleReviewed, reviewAndNext, openChat, showOverview, hydrateViewed, hydrateDrafts, toast } from "../lib/session.js";
 import { startPr, getStory, getThreads, openEvents, regeneratePr } from "../lib/api.js";
+import { isExport } from "../lib/mode.js";
 
 const read = () => {
   const p = new URLSearchParams(location.search);
@@ -75,7 +76,7 @@ function useKeys() {
       if (e.key === "j" || e.key === "ArrowRight") (e.preventDefault(), moveStep(st, 1));
       else if (e.key === "k" || e.key === "ArrowLeft") (e.preventDefault(), moveStep(st, -1));
       else if (e.key === "r" && s.view === "walk" && s.current) reviewAndNext(st);
-      else if (e.key === "c") (e.preventDefault(), openChat());
+      else if (e.key === "c" && !isExport()) (e.preventDefault(), openChat());
       else if (e.key === "o") showOverview();
     };
     window.addEventListener("keydown", onKey);
@@ -314,6 +315,27 @@ function StoryPage({ route }) {
   return html`<div class="app"><${Shell} story=${story} elapsed=${elapsed} simulated=${sim.current} /></div>`;
 }
 
+// A saved copy of a story in one HTML file: the story is embedded, and there is no service behind it.
+export function ExportPage({ story }) {
+  useEffect(() => {
+    if (!story) return;
+    resetSession();
+    live.exportKey = (story.pr.repo + "#" + story.pr.number).toLowerCase();
+    session.set({ current: story.steps[0]?.id || null });
+    hydrateViewed(story);
+    hydrateDrafts(story);
+    document.title = story.pr.title + " · PR Explainer";
+    return () => {
+      live.story = null;
+      live.exportKey = null;
+    };
+  }, [story]);
+  useKeys();
+  if (story) live.story = story;
+  if (!story) return html`<div class="boot"><p class="muted">This page has no story inside it.</p></div>`;
+  return html`<div class="app"><${Shell} story=${story} elapsed=${0} simulated=${false} /></div>`;
+}
+
 function OutdatedBanner({ story, regenerating, onRegenerate }) {
   const readable = ["done", "failed"].includes(story.generation.status);
   const replacing = regenerating && readable;
@@ -331,7 +353,7 @@ function OutdatedBanner({ story, regenerating, onRegenerate }) {
   </div>`;
 }
 
-function Shell({ story, elapsed, simulated }) {
+export function Shell({ story, elapsed, simulated }) {
   const view = useSession((s) => s.view);
   const asideOpen = useSession((s) => s.asideOpen);
   const [busy, setBusy] = useState(false);
@@ -353,7 +375,7 @@ function Shell({ story, elapsed, simulated }) {
   };
   const onRegenerate = live.prKey ? regenerate : null;
   return html`
-    <${Header} story=${story} elapsed=${elapsed} simulated=${simulated} regenerating=${regenerating} onRegenerate=${onRegenerate} navigateHome=${() => navigate("")} />
+    <${Header} story=${story} elapsed=${elapsed} simulated=${simulated} regenerating=${regenerating} onRegenerate=${onRegenerate} navigateHome=${isExport() ? null : () => navigate("")} />
     <${OutdatedBanner} story=${story} regenerating=${regenerating} onRegenerate=${onRegenerate} />
     ${view === "walk"
       ? html`<div class="walk"><${Walkthrough} story=${story} /><${Aside} story=${story} mode="walk" /></div>`

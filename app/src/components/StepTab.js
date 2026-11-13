@@ -6,6 +6,7 @@ import { hunkStats } from "../lib/diff.js";
 import { hunkRole } from "../lib/prepare.js";
 import { useSession, live, toast, goStep, jumpToFile, askAbout } from "../lib/session.js";
 import { retryStep } from "../lib/api.js";
+import { isExport } from "../lib/mode.js";
 import { groupByFile } from "./Diff.js";
 
 export const ROLE_TAG = { source: "src", test: "test", generated: "gen", docs: "docs", config: "config" };
@@ -19,7 +20,8 @@ export function GistFailure({ step }) {
     catch (e) { toast(e.message, "error"); }
     finally { setBusy(false); }
   };
-  return html`<div class="gist-failure" role="status"><span>Couldn’t write this gist.</span><button class="link" disabled=${busy} onClick=${retry}>${busy ? "Retrying…" : "Retry"}</button></div>`;
+  const canRetry = !isExport();
+  return html`<div class="gist-failure" role="status"><span>Couldn’t write this gist.</span>${canRetry ? html`<button class="link" disabled=${busy} onClick=${retry}>${busy ? "Retrying…" : "Retry"}</button>` : null}</div>`;
 }
 
 function Skeleton({ lines = 3 }) {
@@ -51,7 +53,7 @@ function SelectionAsk({ step, rootRef }) {
       window.removeEventListener("scroll", onScroll);
     };
   }, []);
-  if (!sel) return null;
+  if (!sel || isExport()) return null;
   const short = sel.text.length > 48 ? sel.text.slice(0, 46) + "…" : sel.text;
   return html`<button
     class="sel-ask"
@@ -91,9 +93,11 @@ export function StepTab({ story }) {
           <${Md} text=${gist} />
         </section>
         <${SelectionAsk} step=${step} rootRef=${proseRef} />
-        <div class="st-actions">
-          <button class="btn ghost" onClick=${() => askAbout({ type: "step", label: "Step " + step.order + " · " + step.title, stepId: step.id, snippet: gist })}>Ask about this step</button>
-        </div>
+        ${isExport()
+          ? null
+          : html`<div class="st-actions">
+              <button class="btn ghost" onClick=${() => askAbout({ type: "step", label: "Step " + step.order + " · " + step.title, stepId: step.id, snippet: gist })}>Ask about this step</button>
+            </div>`}
       `
       : failed ? html`<div class="st-sec"><${GistFailure} step=${step} /></div>`
       : html`<div class="st-sec"><div class="writing"><i class="spin"></i>Writing the gist</div><${Skeleton} lines=${4} /></div>`}

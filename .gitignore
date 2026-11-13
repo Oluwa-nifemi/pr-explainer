@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-export/
 .env
 .env.*
 !.env.example
