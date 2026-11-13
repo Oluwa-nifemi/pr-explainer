@@ -173,6 +173,12 @@ function HunkView({ hunk, step, hideNote }) {
   const lang = langOf(hunk.path);
   const hl = useMemo(() => highlightLines(lines, lang), [lines, lang]);
   const { add, del } = hunkStats(hunk.patch);
+  // The git @@ context repeats a line that is often already in view, so only label the hunk when it adds something.
+  const ctxLabel = useMemo(() => {
+    const head = (hunk.header || "").trim();
+    const first = lines.find((l) => l.type === "ctx");
+    return head === (first?.text || "").trim() ? "" : head;
+  }, [lines, hunk.header]);
   const hunkComments = comments.filter((c) => c.hunkId === hunk.id && c.scope !== "step");
   const allThreads = useSession((s) => s.threads);
   const openThreads = useSession((s) => s.openThreads);
@@ -268,7 +274,7 @@ function HunkView({ hunk, step, hideNote }) {
   return html`<div class="hunk" data-hunk=${hunk.id}>
     <div class="hunk-head">
       <code class="hh-range">@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines}</code>
-      <span class="hh-ctx">${hunk.header}</span>
+      <span class="hh-ctx">${ctxLabel}</span>
       <span class="hh-stats"><b class="plus">+${add}</b> <b class="minus">−${del}</b></span>
       ${isExport() ? null : html`<button class="link" onClick=${() => askAbout({ type: "hunk", label: `${fileName(hunk.path)} · hunk`, stepId: step.id, hunkId: hunk.id, path: hunk.path, line: hunk.newStart, snippet: hunk.header })}>Ask about this hunk</button>`}
       <label class="viewed-toggle"><input type="checkbox" checked=${viewed} onChange=${(e) => setHunksViewed([hunk.id], e.currentTarget.checked)} /><span>Viewed</span></label>
