@@ -92,14 +92,20 @@ export async function checkGithub(token) {
     console.warn('github setup connection failed ' + errorDetails(err));
     return { ok: false, transient: true, error: 'could not reach api.github.com: ' + err.message };
   }
+  if (res.status === 403 && (res.headers.get('x-ratelimit-remaining') === '0' || res.headers.has('retry-after'))) {
+    return { ok: false, transient: true, error: 'GitHub rate limit reached. Checking again shortly.' };
+  }
   if (res.status === 401 || res.status === 403) return { ok: false, error: 'GitHub rejected the token (' + res.status + ')' };
-  if (!res.ok) return { ok: false, transient: res.status >= 500 || res.status === 429, error: 'GitHub GET /user returned ' + res.status };
+  if (!res.ok) return { ok: false, transient: res.status >= 500 || res.status === 408 || res.status === 429, error: 'GitHub GET /user returned ' + res.status };
   let data = {};
   try {
     data = await res.json();
-  } catch {}
-  const login = typeof data.login === 'string' ? data.login : '';
-  if (!login) return { ok: false, error: 'GitHub GET /user returned no login' };
+  } catch (err) {
+    console.warn('github setup response could not be read ' + errorDetails(err));
+    return { ok: false, transient: true, error: 'GitHub GET /user returned an unreadable response' };
+  }
+  const login = typeof data?.login === 'string' ? data.login : '';
+  if (!login) return { ok: false, transient: true, error: 'GitHub GET /user returned no login' };
   return { ok: true, login, avatarUrl: typeof data.avatar_url === 'string' ? data.avatar_url : '' };
 }
 
@@ -119,13 +125,15 @@ export async function checkLitellm(baseUrl, apiKey) {
     return { ok: false, transient: true, models, error: 'could not reach ' + baseUrl + ': ' + err.message };
   }
   if (res.status === 401 || res.status === 403) return { ok: false, models, error: 'LiteLLM rejected the key (' + res.status + ')' };
-  if (!res.ok) return { ok: false, transient: res.status >= 500 || res.status === 429, models, error: 'LiteLLM GET /models returned ' + res.status };
+  if (!res.ok) return { ok: false, transient: res.status >= 500 || res.status === 408 || res.status === 429, models, error: 'LiteLLM GET /models returned ' + res.status };
   let data = null;
   try {
     data = await res.json();
-  } catch {
-    return { ok: false, models, error: 'LiteLLM GET /models returned invalid JSON' };
+  } catch (err) {
+    console.warn('litellm setup response could not be read ' + errorDetails(err));
+    return { ok: false, transient: true, models, error: 'LiteLLM GET /models returned an unreadable response' };
   }
+  if (!Array.isArray(data?.data)) return { ok: false, transient: true, models, error: 'LiteLLM GET /models returned no model list' };
   for (const entry of Array.isArray(data?.data) ? data.data : []) {
     if (typeof entry?.id === 'string') models.push(entry.id);
   }
@@ -134,8 +142,6 @@ export async function checkLitellm(baseUrl, apiKey) {
   if (missing.length) return { ok: false, models, error: 'LiteLLM does not list: ' + missing.join(', ') };
   return { ok: true, models };
 }
-
-let lastGood = null;
 
 let inflight = null;
 
@@ -150,7 +156,8 @@ function refresh() {
 export async function status({ fresh = false } = {}) {
   if (fresh) return compute();
   if (cache) {
-    if (Date.now() - cache.at >= CACHE_MS) refresh().catch(() => {});
+    const cacheMs = !cache.value.ready && !cache.value.setupRequired ? 3000 : CACHE_MS;
+    if (Date.now() - cache.at >= cacheMs) refresh().catch(() => {});
     return cache.value;
   }
   return refresh();
@@ -168,8 +175,10 @@ async function compute() {
   if (litellm.ok && creds.storyModel === 'deepseek') probeDeepseek(creds.litellmBaseUrl, creds.litellmApiKey);
   const value = {
     ready: github.ok && litellm.ok,
+    setupRequired: (!github.ok && !github.transient) || (!litellm.ok && !litellm.transient),
     github: {
       ok: github.ok,
+      transient: !!github.transient,
       source: creds.sources.github,
       ...(github.login ? { login: github.login } : {}),
       ...(github.avatarUrl ? { avatarUrl: github.avatarUrl } : {}),
@@ -177,6 +186,7 @@ async function compute() {
     },
     litellm: {
       ok: litellm.ok,
+      transient: !!litellm.transient,
       baseUrl: creds.litellmBaseUrl,
       models: litellm.models,
       source: creds.sources.litellm,
@@ -186,24 +196,12 @@ async function compute() {
     storyModel: creds.storyModel,
     storyModelSource: creds.sources.storyModel,
   };
-  const blocked = (!github.ok && !github.transient) || (!litellm.ok && !litellm.transient);
-  const key = creds.githubToken + '|' + creds.litellmApiKey + '|' + creds.litellmBaseUrl;
-  if (value.ready) lastGood = { key, value };
-  else if (!blocked && lastGood && lastGood.key === key) {
-    cache = { at: Date.now() - CACHE_MS + 3000, value: lastGood.value };
-    return lastGood.value;
-  }
   cache = { at: Date.now(), value };
   return value;
 }
 
 export function clearStatus() {
   cache = null;
-  lastGood = null;
-}
-
-export async function isReady() {
-  return (await status()).ready;
 }
 
 async function writeFileCredentials(value) {

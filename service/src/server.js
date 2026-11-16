@@ -304,7 +304,7 @@ async function route(req, res) {
     }
   }
 
-  if (path.startsWith('/api/') && !(await credentials.isReady())) {
+  if (path.startsWith('/api/') && (await credentials.status()).setupRequired) {
     throw new ApiError(428, 'setup_required', 'credentials are missing or invalid. See GET /api/setup.');
   }
 
@@ -470,7 +470,11 @@ const startup = await credentials
   .catch((err) => ({ ready: false, error: err?.message || String(err) }));
 console.log(
   'credentials ' +
-    (startup.ready ? 'ready (github ' + startup.github.login + ', litellm ' + startup.litellm.models.length + ' models)' : 'not ready, open the UI setup'),
+    (startup.ready
+      ? 'ready (github ' + startup.github.login + ', litellm ' + startup.litellm.models.length + ' models)'
+      : startup.setupRequired
+      ? 'missing or rejected, open the UI setup'
+      : 'configured, connection checks unavailable; will check again'),
 );
 
 const server = http.createServer((req, res) => {
