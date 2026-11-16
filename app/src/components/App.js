@@ -90,11 +90,14 @@ function LivePage({ prKey }) {
   const [story, setStory] = useState(null);
   const [error, setError] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [attempt, setAttempt] = useState(0);
   const pending = useRef(null);
   const restored = useRef(false);
 
   useEffect(() => {
     let dead = false;
+    setError(null);
+    restored.current = false;
     resetSession();
     live.prKey = prKey;
     const apply = (s) => {
@@ -176,6 +179,8 @@ function LivePage({ prKey }) {
       .catch((e) => !dead && setError(e.message));
     return () => {
       dead = true;
+      clearTimeout(pending.current);
+      pending.current = null;
       close();
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("prx-regen", onRegenerate);
@@ -183,7 +188,7 @@ function LivePage({ prKey }) {
       live.story = null;
       live.prKey = null;
     };
-  }, [prKey]);
+  }, [prKey, attempt]);
 
   const generating = story && !["done", "failed"].includes(story.generation.status);
   useEffect(() => {
@@ -211,7 +216,7 @@ function LivePage({ prKey }) {
   if (story) live.story = story;
   if (!story)
     return error
-      ? html`<main class="entry"><div class="entry-wrap"><h1>Could not open ${prKey}.</h1><p class="entry-lede">${error}</p><button class="btn primary" onClick=${() => navigate("")}>Back to start</button></div></main>`
+      ? html`<main class="entry"><div class="entry-wrap"><h1>Could not open ${prKey}.</h1><p class="entry-lede">${error}</p><div class="notice-actions"><button class="btn primary" onClick=${() => { setError(null); setAttempt((n) => n + 1); }}>Retry</button><button class="btn ghost" onClick=${() => navigate("")}>Back to start</button></div></div></main>`
       : html`<div class="boot"><i class="spin"></i><p class="muted">Starting ${prKey}</p></div>`;
   const elapsed = generating ? Math.max(0, now - Date.parse(story.generation.startedAt)) : story.generation.timings?.totalMs || 0;
   return html`<div class="app"><${Shell} story=${story} elapsed=${elapsed} simulated=${false} /></div>`;

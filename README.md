@@ -136,6 +136,12 @@ Click Settings on the home page. You can read and change:
 
 Your changes are saved to `~/.config/pr-explainer/overrides.json`, outside the project. Anything you do not change follows the defaults. Saving marks existing stories as Outdated, and you regenerate them one at a time. To go back to the defaults, delete the file. In Docker: `docker compose exec service rm /home/node/.config/pr-explainer/overrides.json`.
 
+### Temporary GitHub failures
+
+GitHub reads retry up to twice after connection failures or HTTP 500, 502, 503 and 504 responses. Each read attempt times out after 15 seconds. Retries use short, increasing delays. Authentication, permission and rate-limit failures are not retried. Reviews, comments and other GitHub writes are never retried automatically.
+
+If opening a PR still fails, click **Retry** on the error page. You do not need to reload. Logs include each retry and whether the request recovered.
+
 ### Export logs for debugging
 
 Open **Settings → Diagnostics → Export logs**. If setup is blocked, click **Diagnostics** on the setup screen. You can also open http://127.0.0.1:5180/?settings=diagnostics directly.
