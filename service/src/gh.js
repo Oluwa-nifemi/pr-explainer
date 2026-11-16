@@ -1,11 +1,9 @@
 import { resolve as resolveCredentials } from './credentials.js';
-import { errorDetails } from './diagnostics.js';
-
-const API = 'https://api.github.com';
+import { fetchGithub } from '../../pipeline/src/github-http.js';
 
 export class GithubError extends Error {
-  constructor(status, message, data) {
-    super(message);
+  constructor(status, message, data, options) {
+    super(message, options);
     this.name = 'GithubError';
     this.status = status;
     this.data = data;
@@ -18,7 +16,7 @@ async function token() {
   return githubToken;
 }
 
-async function ghFetch(path, init = {}, retry = true) {
+async function ghFetch(path, init, readOnly) {
   const headers = {
     Authorization: 'Bearer ' + (await token()),
     Accept: 'application/vnd.github+json',
@@ -26,29 +24,19 @@ async function ghFetch(path, init = {}, retry = true) {
     'User-Agent': 'pr-explainer-service',
     ...(init.headers || {}),
   };
-  const started = Date.now();
-  let res;
   try {
-    res = await fetch(API + path, { ...init, headers });
+    return await fetchGithub(path, { ...init, headers }, readOnly);
   } catch (err) {
-    console.error('github connection failed method=' + (init.method || 'GET') + ' path=' + path.split('?')[0] + ' durationMs=' + (Date.now() - started) + ' ' + errorDetails(err));
-    throw new GithubError(502, 'GitHub request failed: ' + err.message);
+    throw new GithubError(502, 'GitHub request failed: ' + err.message, undefined, { cause: err });
   }
-  if (!res.ok) console.warn('github request failed method=' + (init.method || 'GET') + ' path=' + path.split('?')[0] + ' status=' + res.status + ' durationMs=' + (Date.now() - started) + ' requestId=' + (res.headers.get('x-github-request-id') || 'unknown'));
-  if (res.status === 401 && retry) {
-    await resolveCredentials();
-    return ghFetch(path, init, false);
-  }
-  return res;
 }
 
 export async function rest(method, path, body) {
-  const res = await ghFetch(path, {
+  const { res, text } = await ghFetch(path, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
+  }, method === 'GET' || method === 'HEAD');
   let data = null;
   if (text) {
     try {
@@ -67,12 +55,11 @@ export async function rest(method, path, body) {
 }
 
 export async function graphql(query, variables) {
-  const res = await ghFetch('/graphql', {
+  const { res, text } = await ghFetch('/graphql', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, variables }),
-  });
-  const text = await res.text();
+  }, /^\s*query\b/.test(query));
   let data;
   try {
     data = JSON.parse(text);
