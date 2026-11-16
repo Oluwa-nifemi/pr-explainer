@@ -13,6 +13,7 @@ export function Entry({ go, goPr, goSettings }) {
   const [prs, setPrs] = useState(null);
   const [down, setDown] = useState(false);
   const [manual, setManual] = useState("");
+  const [repoFilter, setRepoFilter] = useState("all");
 
   useEffect(() => {
     let dead = false;
@@ -31,6 +32,11 @@ export function Entry({ go, goPr, goSettings }) {
     if (!p) return setProblem({ error: "invalid" });
     goPr(keyOf(p.owner, p.repo, p.number));
   };
+
+  const shown = (prs || []).filter((p) => !p.merged);
+  const repos = [...new Set(shown.map((p) => p.repo))].sort();
+  const activeRepo = repoFilter !== "all" && repos.includes(repoFilter) ? repoFilter : "all";
+  const rows = activeRepo === "all" ? shown : shown.filter((p) => p.repo === activeRepo);
 
   return html`<main class="entry">
     <div class="entry-wrap">
@@ -63,8 +69,16 @@ export function Entry({ go, goPr, goSettings }) {
           <h2>Your PRs</h2>
           <span class="muted">Stories the service has made or is making</span>
         </div>
+        ${repos.length > 1
+          ? html`<div class="repo-pills" role="group" aria-label="Filter by repository">
+              <button class=${cx("pill", activeRepo === "all" && "on")} aria-pressed=${activeRepo === "all"} onClick=${() => setRepoFilter("all")}>All <span class="pill-n">${shown.length}</span></button>
+              ${repos.map((r) => html`<button class=${cx("pill", activeRepo === r && "on")} aria-pressed=${activeRepo === r} onClick=${() => setRepoFilter(r)}>
+                ${r} <span class="pill-n">${shown.filter((p) => p.repo === r).length}</span>
+              </button>`)}
+            </div>`
+          : null}
         <ul>
-          ${(prs || []).map(
+          ${rows.map(
             (p) => html`<li key=${p.repo + p.number}>
               <button class=${cx("qrow", p.status === "done" ? "ready" : "queued")} onClick=${() => goPr(keyOf(...p.repo.split("/"), p.number))}>
                 <span class="q-main">
@@ -78,7 +92,8 @@ export function Entry({ go, goPr, goSettings }) {
               </button>
             </li>`
           )}
-          ${prs && !prs.length ? html`<li class="muted">No stories yet. Paste a PR link above.</li>` : null}
+          ${prs && !shown.length ? html`<li class="muted">No stories yet. Paste a PR link above.</li>` : null}
+          ${shown.length && !rows.length ? html`<li class="muted">No open stories in ${activeRepo}.</li>` : null}
         </ul>
       </section>
 

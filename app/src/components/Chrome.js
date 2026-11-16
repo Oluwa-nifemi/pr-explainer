@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { cx, fmtSec, sleep } from "../lib/util.js";
 import { fakeSummary } from "../lib/chat.js";
 import { session, useSession, removeReply, removeComment, showOverview, goStep, draftCount, openChat, toast, jumpToNode, nodeIsLinked, live } from "../lib/session.js";
-import { postReview, getThreads, replyThread, exportUrl } from "../lib/api.js";
+import { postReview, getThreads, replyThread, exportUrl, storyJsonUrl } from "../lib/api.js";
 import { openSettings } from "../lib/setup.js";
 import { isExport } from "../lib/mode.js";
 import { buildReview, downloadMarkdown, reviewFileName } from "../lib/reviewExport.js";
@@ -93,7 +93,10 @@ function TopMenu({ story, view, asideOpen, generating, regenerating, onRegenerat
   const tools = [
     onRegenerate ? item(regenerating ? "Regenerating…" : "Regenerate", onRegenerate, { busy: regenerating, disabled: generating || regenerating, title: "Rebuild the explanation from the latest PR commits" }) : null,
     live.prKey
-      ? html`<a class="menu-item" role="menuitem" href=${exportUrl(live.prKey)} title="Download this story as one HTML file you can send to someone" onClick=${() => setOpen(false)}>Export</a>`
+      ? html`<a class="menu-item" role="menuitem" href=${exportUrl(live.prKey)} title="Download this story as one HTML file you can send to someone" onClick=${() => setOpen(false)}>Export HTML</a>`
+      : null,
+    live.prKey
+      ? html`<a class="menu-item" role="menuitem" href=${storyJsonUrl(live.prKey)} title="Download this story as the JSON file it is stored as" onClick=${() => setOpen(false)}>Export JSON</a>`
       : null,
     item("Settings", openSettings),
   ].filter(Boolean);
