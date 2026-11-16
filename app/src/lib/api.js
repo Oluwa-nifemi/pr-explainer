@@ -1,4 +1,5 @@
 import { prepareStory } from "./prepare.js";
+import { diagnosticFetch as fetch, recordDiagnostic } from "./diagnostics.js";
 
 export const API = "http://127.0.0.1:5190";
 
@@ -23,7 +24,10 @@ async function call(method, path, body) {
   } catch {
     throw new ApiError(0, "service_down", "The PR Explainer service is not running on " + API + ".");
   }
-  const data = await r.json().catch(() => null);
+  const data = await r.json().catch(() => {
+    if (r.status !== 204) recordDiagnostic("invalid_json", { url: API + path, status: r.status });
+    return null;
+  });
   if (!r.ok) {
     const e = data?.error || {};
     if (r.status === 428) window.dispatchEvent(new Event("prx-setup"));
@@ -60,6 +64,7 @@ export async function streamChat(key, request, onEvent, signal) {
   }
   const reader = r.body.getReader();
   const dec = new TextDecoder();
+  let finished = false;
   let buf = "";
   const flush = (block) => {
     let type = "message";
@@ -70,11 +75,19 @@ export async function streamChat(key, request, onEvent, signal) {
     }
     if (!lines.length) return;
     try {
-      onEvent(type, JSON.parse(lines.join("\n")));
-    } catch {}
+      const data = JSON.parse(lines.join("\n"));
+      if (type === "done" || type === "error") finished = true;
+      if (type === "error") recordDiagnostic("chat_failed");
+      onEvent(type, data);
+    } catch {
+      recordDiagnostic("chat_event_failed");
+    }
   };
   for (;;) {
-    const { value, done } = await reader.read();
+    const { value, done } = await reader.read().catch((error) => {
+      if (!signal?.aborted) recordDiagnostic("chat_stream_failed", { name: error.name });
+      throw error;
+    });
     if (done) break;
     buf += dec.decode(value, { stream: true }).replace(/\r\n/g, "\n");
     let i;
@@ -84,6 +97,8 @@ export async function streamChat(key, request, onEvent, signal) {
     }
   }
   if (buf.trim()) flush(buf);
+  reader.releaseLock();
+  if (!finished && !signal?.aborted) recordDiagnostic("chat_stream_interrupted");
 }
 
 export const prPath = (key) => "/api/prs/" + key;
@@ -121,13 +136,27 @@ export function adaptStory(story) {
 const EVENTS = ["story", "summary", "plan", "step", "overview", "done", "threads", "error"];
 
 export function openEvents(key, onEvent) {
-  const es = new EventSource(API + prPath(key) + "/events");
+  const url = API + prPath(key) + "/events";
+  const es = new EventSource(url);
+  let disconnected = false;
+  es.addEventListener("error", (event) => {
+    if (event.data || disconnected) return;
+    disconnected = true;
+    recordDiagnostic("events_disconnected", { url });
+  });
+  es.addEventListener("open", () => {
+    if (disconnected) recordDiagnostic("events_reconnected", { url });
+    disconnected = false;
+  });
   EVENTS.forEach((type) =>
     es.addEventListener(type, (e) => {
       let data = null;
       try {
         data = JSON.parse(e.data);
-      } catch {}
+      } catch {
+        if (e.data) recordDiagnostic("invalid_event_json", { url });
+      }
+      if (type === "error" && e.data) recordDiagnostic("generation_failed", { url });
       onEvent(type, data);
     })
   );

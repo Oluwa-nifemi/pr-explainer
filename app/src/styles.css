@@ -698,7 +698,7 @@ button.frow:hover { background: rgba(60, 50, 30, 0.07); }
 .sp-crumb::before { content: "/"; margin-right: 12px; color: var(--line); }
 .sp-wrap { max-width: 880px; margin: 0 auto; padding: 44px 24px 0; }
 .sp-wrap h1 { font-family: var(--serif); font-size: 36px; line-height: 1.12; letter-spacing: -0.022em; font-weight: 450; }
-.sp-tabs { display: flex; gap: 4px; margin: 22px 0 0; border-bottom: 1px solid var(--line); }
+.sp-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 22px 0 0; border-bottom: 1px solid var(--line); }
 .sp-tab { border: 0; background: transparent; padding: 9px 14px 11px; font-size: 14.5px; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .sp-tab:hover { color: var(--ink); }
 .sp-tab.on { color: var(--ink); border-bottom-color: var(--ink); }

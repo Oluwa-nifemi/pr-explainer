@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 import { useEffect, useState } from "preact/hooks";
-import { getSettings, saveSettings } from "../lib/api.js";
+import { API, getSettings, saveSettings } from "../lib/api.js";
+import { downloadDiagnostics } from "../lib/diagnostics.js";
 import { useSetup } from "../lib/setup.js";
 import { Setup } from "./Setup.js";
 import { cx } from "../lib/util.js";
@@ -10,6 +11,7 @@ const TABS = [
   ["prompts", "Prompts"],
   ["files", "Files"],
   ["connections", "Connections"],
+  ["diagnostics", "Diagnostics"],
 ];
 const SKIP_ORDER = ["custom", "lockfile", "snapshot", "binary", "generated"];
 const ROLE_ORDER = ["test", "config", "docs"];
@@ -295,6 +297,39 @@ function FilesTab({ data, draft, update }) {
   </div>`;
 }
 
+function DiagnosticsTab() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const download = async () => {
+    setBusy(true);
+    setResult(null);
+    setError(null);
+    try {
+      setResult(await downloadDiagnostics(API));
+    } catch {
+      setError("Could not create the download. Try again in this browser.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return html`<div class="sp-pane">
+    <p class="sp-lede">Something went wrong? Export the logs from this machine so a teammate can help.</p>
+    <section class="sp-card">
+      <h3>One file for debugging</h3>
+      <p class="sp-help">Includes recent service and pipeline logs, browser errors, failed requests and connection failures. Nothing is sent anywhere when you export.</p>
+      <p class="sp-help">The browser keeps up to 200 events in this tab, across reloads, for up to 14 days. The export includes up to 2 MB of recent service logs, including rotated files.</p>
+      <p class="sp-hint">Request bodies and chat text are not collected by the new browser logging. Credentials are redacted from service logs. Repository names, file paths and existing pipeline output may remain. Review the file before sharing.</p>
+    </section>
+    <div><button class="btn primary" disabled=${busy} onClick=${download}>${busy ? "Collecting logs…" : "Export logs"}</button></div>
+    <p class="sp-help">If the service cannot be reached, you can still export this tab’s browser logs.</p>
+    <div role="status" aria-live="polite">
+      ${result ? html`<p class="sp-help">${result.serviceUnavailable ? "Browser logs exported. Service logs are missing because the service could not be reached or its logs could not be loaded." : result.incomplete ? "Logs exported, but some service log files could not be read. Details are in the file." : result.truncated ? "Logs exported. Only the most recent 2 MB of service logs are included." : "Logs exported. Review the file before sharing."}</p>` : null}
+      ${error ? html`<p class="sp-bad">${error}</p>` : null}
+    </div>
+  </div>`;
+}
+
 // ---------- page ----------
 
 export function SettingsPage({ tab, go }) {
@@ -308,10 +343,11 @@ export function SettingsPage({ tab, go }) {
   const status = useSetup().status;
 
   useEffect(() => {
+    if (data || current === "diagnostics") return;
     getSettings()
       .then((d) => (setData(d), setDraft(clone(d.overrides))))
       .catch((e) => setError(e.message));
-  }, []);
+  }, [current]);
 
   const update = (fn) => {
     setSaved(false);
@@ -344,13 +380,14 @@ export function SettingsPage({ tab, go }) {
       <nav class="sp-tabs" role="tablist">
         ${TABS.map(([id, label]) => html`<button key=${id} role="tab" aria-selected=${id === current} class=${cx("sp-tab", id === current && "on")} onClick=${() => setTab(id)}>${label}</button>`)}
       </nav>
-      ${error ? html`<div class="notice"><b>Could not load the settings.</b> ${error}</div>` : null}
-      ${!data && !error ? html`<div class="boot"><i class="spin"></i></div>` : null}
+      ${error && current !== "diagnostics" ? html`<div class="notice"><b>Could not load the settings.</b> ${error}</div>` : null}
+      ${!data && !error && current !== "diagnostics" ? html`<div class="boot"><i class="spin"></i></div>` : null}
+      ${current === "diagnostics" ? html`<${DiagnosticsTab} />` : null}
       ${data && current === "pipeline" ? html`<${PipelineTab} data=${data} setTab=${setTab} />` : null}
       ${data && current === "prompts" ? html`<${PromptsTab} data=${data} draft=${draft} update=${update} />` : null}
       ${data && current === "files" ? html`<${FilesTab} data=${data} draft=${draft} update=${update} />` : null}
       ${current === "connections" && status ? html`<div class="sp-pane sp-conn"><${Setup} status=${status} embedded=${true} /></div>` : null}
-      ${data ? html`<p class="sp-foot">Your changes are saved to <code>${data.path}</code>, outside the project, so git never sees them. Delete the file to go back to the defaults.</p>` : null}
+      ${data && current !== "diagnostics" ? html`<p class="sp-foot">Your changes are saved to <code>${data.path}</code>, outside the project, so git never sees them. Delete the file to go back to the defaults.</p>` : null}
     </div>
     ${dirty || saved || problem
       ? html`<div class="sp-savebar" role="status">

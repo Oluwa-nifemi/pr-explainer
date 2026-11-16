@@ -1,4 +1,5 @@
 import { prepareStory } from "./prepare.js";
+import { diagnosticFetch as fetch, recordDiagnostic } from "./diagnostics.js";
 
 const PR_RE = /github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/i;
 
@@ -33,7 +34,8 @@ async function getJson(url) {
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) return null;
     return await r.json();
-  } catch {
+  } catch (error) {
+    recordDiagnostic("story_load_failed", { url, name: error.name });
     return null;
   }
 }

@@ -120,5 +120,5 @@ export function Setup({ status, modal, embedded }) {
 
   if (embedded) return form;
   if (modal) return html`<div class="modal-back" onMouseDown=${(e) => e.target === e.currentTarget && closeSettings()}><div class="modal setup-modal" role="dialog" aria-modal="true" aria-label="Settings">${form}</div></div>`;
-  return html`<main class="entry"><div class="entry-wrap setup-wrap"><div class="entry-brand"><span class="brand-mark">¶</span>PR Explainer</div>${form}</div></main>`;
+  return html`<main class="entry"><div class="entry-wrap setup-wrap"><div class="entry-brand"><span class="brand-mark">¶</span>PR Explainer<a class="btn ghost small entry-settings" href="?settings=diagnostics">Diagnostics</a></div>${form}</div></main>`;
 }

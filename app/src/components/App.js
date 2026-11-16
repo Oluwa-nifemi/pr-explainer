@@ -52,6 +52,7 @@ export function App() {
     const id = setInterval(refreshSetup, 3000);
     return () => clearInterval(id);
   }, [notReady]);
+  if (route.settings === "diagnostics") return html`<${SettingsPage} tab="diagnostics" go=${navigate} />`;
   if (!st.loaded) return html`<div class="boot"><i class="spin"></i></div>`;
   if (st.status && !st.status.ready) return html`<${Setup} status=${st.status} />`;
   const page = route.settings !== null
