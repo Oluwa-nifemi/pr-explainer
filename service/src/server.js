@@ -143,9 +143,10 @@ async function sendExport(res, repo, number, format) {
   }
   const title = escapeHtml(story.pr.repo + ' #' + story.pr.number + ' · ' + story.pr.title);
   const payload = JSON.stringify(story).replace(/</g, '\\u003c');
+  // Function replacements, so a $ in the story or the title is not read as a pattern like $& or $`.
   const body = page
-    .replace('<title>PR Explainer</title>', '<title>' + title + '</title>')
-    .replace('<!--PRX-STORY-->', '<script>window.__PRX_EXPORT__=' + payload + ';</script>');
+    .replace('<title>PR Explainer</title>', () => '<title>' + title + '</title>')
+    .replace('<!--PRX-STORY-->', () => '<script>window.__PRX_EXPORT__=' + payload + ';</script>');
   res.writeHead(200, {
     ...CORS,
     'Content-Type': 'text/html; charset=utf-8',
