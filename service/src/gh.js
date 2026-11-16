@@ -1,4 +1,5 @@
 import { resolve as resolveCredentials } from './credentials.js';
+import { errorDetails } from './diagnostics.js';
 
 const API = 'https://api.github.com';
 
@@ -25,12 +26,15 @@ async function ghFetch(path, init = {}, retry = true) {
     'User-Agent': 'pr-explainer-service',
     ...(init.headers || {}),
   };
+  const started = Date.now();
   let res;
   try {
     res = await fetch(API + path, { ...init, headers });
   } catch (err) {
+    console.error('github connection failed method=' + (init.method || 'GET') + ' path=' + path.split('?')[0] + ' durationMs=' + (Date.now() - started) + ' ' + errorDetails(err));
     throw new GithubError(502, 'GitHub request failed: ' + err.message);
   }
+  if (!res.ok) console.warn('github request failed method=' + (init.method || 'GET') + ' path=' + path.split('?')[0] + ' status=' + res.status + ' durationMs=' + (Date.now() - started) + ' requestId=' + (res.headers.get('x-github-request-id') || 'unknown'));
   if (res.status === 401 && retry) {
     await resolveCredentials();
     return ghFetch(path, init, false);

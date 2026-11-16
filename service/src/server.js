@@ -1,4 +1,6 @@
-import './logfile.js';
+import { exportLogs } from './logfile.js';
+import { errorDetails } from './diagnostics.js';
+import { pipelineVersion } from './generator.js';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +33,7 @@ function sendJson(res, status, value) {
     ...CORS,
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
+    'Cache-Control': 'no-store',
   });
   res.end(body);
 }
@@ -250,6 +253,17 @@ async function route(req, res) {
     return;
   }
 
+  if (path === '/api/diagnostics' && req.method === 'GET') {
+    await credentials.resolve();
+    sendJson(res, 200, {
+      exportedAt: new Date().toISOString(),
+      runtime: { node: process.version, platform: process.platform, arch: process.arch, uptimeSeconds: Math.floor(process.uptime()) },
+      pipelineVersion: pipelineVersion(),
+      logs: await exportLogs(),
+    });
+    return;
+  }
+
   if (path === '/api/setup') {
     if (req.method === 'GET') {
       sendJson(res, 200, await credentials.status());
@@ -435,7 +449,18 @@ console.log(
 );
 
 const server = http.createServer((req, res) => {
-  route(req, res).catch((err) => sendError(res, err));
+  const started = Date.now();
+  const path = String(req.url || '').split('?')[0];
+  res.on('finish', () => {
+    if (res.statusCode >= 400) console.warn('request failed method=' + req.method + ' path=' + path + ' status=' + res.statusCode + ' durationMs=' + (Date.now() - started));
+  });
+  res.on('close', () => {
+    if (!res.writableFinished) console.warn('connection closed method=' + req.method + ' path=' + path + ' durationMs=' + (Date.now() - started));
+  });
+  route(req, res).catch((err) => {
+    console.error('request error method=' + req.method + ' path=' + path + ' durationMs=' + (Date.now() - started) + ' ' + errorDetails(err));
+    sendError(res, err);
+  });
 });
 
 server.listen(config.port, config.host, () => {

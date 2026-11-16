@@ -6,6 +6,7 @@ import { configureGitHub } from '../../pipeline/src/github.js';
 import { DEFAULT_BASE_URL, configureLLM } from '../../pipeline/src/llm.js';
 import { MODELS, getStoryModel, setStoryModel } from '../../pipeline/src/models.js';
 import { ApiError } from './errors.js';
+import { registerSecrets, redact, errorDetails } from './diagnostics.js';
 
 const CHECK_TIMEOUT_MS = 15000;
 const CACHE_MS = 20000;
@@ -25,8 +26,10 @@ function probeDeepseek(baseUrl, apiKey) {
   })
     .then((res) => {
       if (deepseek.id === id) deepseek.state = res.ok ? 'ok' : 'failed';
+      if (!res.ok) console.warn('litellm model probe failed status=' + res.status);
     })
-    .catch(() => {
+    .catch((err) => {
+      console.warn('litellm model probe connection failed ' + errorDetails(err));
       if (deepseek.id === id) deepseek.state = 'failed';
     });
 }
@@ -59,6 +62,7 @@ export async function resolve() {
   const githubToken = env.PR_EXPLAINER_GITHUB_TOKEN || file.githubToken || '';
   const litellmApiKey = env.PR_EXPLAINER_LITELLM_API_KEY || file.litellmApiKey || '';
   const litellmBaseUrl = normalizeBase(env.PR_EXPLAINER_LITELLM_BASE_URL || file.litellmBaseUrl || DEFAULT_BASE_URL);
+  registerSecrets(env.PR_EXPLAINER_GITHUB_TOKEN, file.githubToken, env.PR_EXPLAINER_LITELLM_API_KEY, file.litellmApiKey);
   const sources = {
     github: env.PR_EXPLAINER_GITHUB_TOKEN ? 'env' : file.githubToken ? 'file' : 'missing',
     litellm: env.PR_EXPLAINER_LITELLM_API_KEY ? 'env' : file.litellmApiKey ? 'file' : 'missing',
@@ -85,6 +89,7 @@ export async function checkGithub(token) {
       signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     });
   } catch (err) {
+    console.warn('github setup connection failed ' + errorDetails(err));
     return { ok: false, transient: true, error: 'could not reach api.github.com: ' + err.message };
   }
   if (res.status === 401 || res.status === 403) return { ok: false, error: 'GitHub rejected the token (' + res.status + ')' };
@@ -110,6 +115,7 @@ export async function checkLitellm(baseUrl, apiKey) {
       signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     });
   } catch (err) {
+    console.warn('litellm setup connection failed ' + errorDetails(err));
     return { ok: false, transient: true, models, error: 'could not reach ' + baseUrl + ': ' + err.message };
   }
   if (res.status === 401 || res.status === 403) return { ok: false, models, error: 'LiteLLM rejected the key (' + res.status + ')' };
@@ -156,6 +162,9 @@ async function compute() {
     checkGithub(creds.githubToken),
     checkLitellm(creds.litellmBaseUrl, creds.litellmApiKey),
   ]);
+  for (const [name, result] of [['github', github], ['litellm', litellm]]) {
+    if (!result.ok) console.warn('connection check failed service=' + name + ' transient=' + !!result.transient + ' reason=' + redact(result.error));
+  }
   if (litellm.ok && creds.storyModel === 'deepseek') probeDeepseek(creds.litellmBaseUrl, creds.litellmApiKey);
   const value = {
     ready: github.ok && litellm.ok,

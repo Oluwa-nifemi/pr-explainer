@@ -54,7 +54,8 @@ export async function ensureDirs() {
 export async function readJson(path, fallback = null) {
   try {
     return JSON.parse(await readFile(path, 'utf8'));
-  } catch {
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.error('saved data load failed path=' + path + ' reason=' + (err.code || err.name));
     return fallback;
   }
 }
