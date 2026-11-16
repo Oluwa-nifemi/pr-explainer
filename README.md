@@ -132,8 +132,21 @@ Click Settings on the home page. You can read and change:
 - **Prompts.** Everything each agent is sent, in order. Edit the planner, summary and worker text, and choose how many diagrams you want.
 - **Files.** What is left out of stories, such as lockfiles and snapshots, and how files are labelled as test, config or docs. Add your own patterns and try a path before you save.
 - **Connections.** Your GitHub and LiteLLM details.
+- **Diagnostics.** Export recent service logs and this tab's browser errors as one JSON file. It works before setup too.
 
 Your changes are saved to `~/.config/pr-explainer/overrides.json`, outside the project. Anything you do not change follows the defaults. Saving marks existing stories as Outdated, and you regenerate them one at a time. To go back to the defaults, delete the file. In Docker: `docker compose exec service rm /home/node/.config/pr-explainer/overrides.json`.
+
+### Export logs for debugging
+
+Open **Settings → Diagnostics → Export logs**. If setup is blocked, click **Diagnostics** on the setup screen. You can also open http://127.0.0.1:5180/?settings=diagnostics directly.
+
+The export includes up to 2 MB of recent service and pipeline logs, runtime details, and up to 200 browser events from the current tab. Browser events survive reloads in that tab and expire after 14 days. They include failed requests, broken connections, failed resource loads and interrupted streams, not request bodies or chat text.
+
+If the service is unreachable, the download still contains browser logs. The page and the file both say that service logs are missing. Export before closing the affected tab.
+
+Configured GitHub and LiteLLM keys and common credential patterns are redacted from service logs during export. Repository names, file paths and existing pipeline output may remain. Review the file before sharing it. Export does not upload anything.
+
+Docker Compose normally saves service logs in `logs/service.log`, with 5 MB rotation and up to five older files. Rotated files expire after 14 days. If that folder is not writable, the service uses its cache folder. You can also inspect console output with `docker compose logs service`.
 
 ## Privacy and limits
 
