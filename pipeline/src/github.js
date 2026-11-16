@@ -1,11 +1,11 @@
-const API = 'https://api.github.com';
+import { fetchGithub } from './github-http.js';
 const TIMEOUT_MS = 60000;
 
 let configuredToken = null;
 
 export class GitHubError extends Error {
-  constructor(status, message) {
-    super(message);
+  constructor(status, message, options) {
+    super(message, options);
     this.name = 'GitHubError';
     this.status = status;
   }
@@ -32,17 +32,18 @@ function headers(accept) {
 
 export async function request(path, { accept = 'application/vnd.github+json', method = 'GET', body } = {}) {
   let res;
+  let text;
+  const readOnly = method === 'GET' || method === 'HEAD';
   try {
-    res = await fetch(API + path, {
+    ({ res, text } = await fetchGithub(path, {
       method,
       headers: { ...headers(accept), ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+      signal: readOnly ? undefined : AbortSignal.timeout(TIMEOUT_MS),
+    }, readOnly));
   } catch (err) {
-    throw new GitHubError(502, 'GitHub request failed: ' + err.message);
+    throw new GitHubError(502, 'GitHub request failed: ' + err.message, { cause: err });
   }
-  const text = await res.text();
   if (!res.ok) {
     let reason = '';
     try {
