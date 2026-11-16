@@ -54,7 +54,7 @@ export function App() {
   }, [notReady]);
   if (route.settings === "diagnostics") return html`<${SettingsPage} tab="diagnostics" go=${navigate} />`;
   if (!st.loaded) return html`<div class="boot"><i class="spin"></i></div>`;
-  if (st.status && !st.status.ready) return html`<${Setup} status=${st.status} />`;
+  if (st.status?.setupRequired) return html`<${Setup} status=${st.status} />`;
   const page = route.settings !== null
     ? html`<${SettingsPage} tab=${route.settings} go=${navigate} />`
     : route.pr
@@ -62,7 +62,8 @@ export function App() {
     : !route.story
     ? html`<${Entry} go=${(name) => navigate("?story=" + encodeURIComponent(name))} goPr=${(key) => navigate("?pr=" + key)} goSettings=${() => navigate("?settings=pipeline")} />`
     : html`<${StoryPage} key=${route.story} route=${route} />`;
-  return html`${page}${st.open && st.status ? html`<${Setup} status=${st.status} modal=${true} />` : null}`;
+  const unavailable = [["github", "GitHub"], ["litellm", "LiteLLM"]].filter(([key]) => st.status?.[key]?.transient).map(([, name]) => name);
+  return html`${unavailable.length ? html`<div class="connection-notice" role="status"><span><b>${unavailable.join(" and ")} ${unavailable.length === 1 ? "is" : "are"} temporarily unavailable.</b> Your credentials are configured. Rechecking automatically.</span><button class="btn ghost small" onClick=${() => navigate("?settings=diagnostics")}>Diagnostics</button></div>` : null}${page}${st.open && st.status ? html`<${Setup} status=${st.status} modal=${true} />` : null}`;
 }
 
 function useKeys() {

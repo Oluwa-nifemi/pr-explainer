@@ -6,9 +6,9 @@ import { cx } from "../lib/util.js";
 
 const TOKENS_URL = "https://github.com/settings/tokens";
 
-function State({ ok, error, source, envName, okText }) {
+function State({ ok, error, transient, source, envName, okText }) {
+  if (error) return html`<p class=${cx("sf-state", transient ? "waiting" : "bad")} role=${transient ? "status" : "alert"}>${error}${transient ? " Your credential is still configured." : ""}</p>`;
   if (source === "env") return html`<p class="sf-state ok">Set by the environment variable <code>${envName}</code>. Change it there.</p>`;
-  if (error) return html`<p class="sf-state bad" role="alert">${error}</p>`;
   if (ok) return html`<p class="sf-state ok">${okText}</p>`;
   return null;
 }
@@ -74,16 +74,16 @@ export function Setup({ status, modal, embedded }) {
 
     <label class="sf">
       <span class="sf-label">GitHub token</span>
-      <input type="password" autocomplete="off" spellcheck="false" value=${github} disabled=${gh.source === "env"} placeholder=${gh.source === "env" ? "Set by environment variable" : gh.ok ? "Saved. Paste a new token to replace it." : "ghp_… or github_pat_…"} onInput=${(e) => setGithub(e.currentTarget.value)} />
+      <input type="password" autocomplete="off" spellcheck="false" value=${github} disabled=${gh.source === "env"} placeholder=${gh.source === "env" ? "Set by environment variable" : gh.source === "file" ? "Saved. Paste a new token to replace it." : "ghp_… or github_pat_…"} onInput=${(e) => setGithub(e.currentTarget.value)} />
       <span class="sf-help">Create a token at <a href=${TOKENS_URL} target="_blank" rel="noreferrer">github.com/settings/tokens</a> with the scopes <code>repo</code> and <code>read:org</code>.</span>
-      <${State} ok=${gh.ok} error=${gh.error} source=${gh.source} envName="PR_EXPLAINER_GITHUB_TOKEN" okText=${"Working. Signed in as " + gh.login + "."} />
+      <${State} ok=${gh.ok} error=${gh.error} transient=${gh.transient} source=${gh.source} envName="PR_EXPLAINER_GITHUB_TOKEN" okText=${"Working. Signed in as " + gh.login + "."} />
     </label>
 
     <label class="sf">
       <span class="sf-label">LiteLLM API key</span>
-      <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.ok ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => setKey(e.currentTarget.value)} />
+      <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.source === "file" ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => setKey(e.currentTarget.value)} />
       <span class="sf-help">The key for your LiteLLM gateway. It must be allowed to use the story model you pick below.</span>
-      <${State} ok=${ll.ok} error=${ll.error} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + ll.models.length + " models available."} />
+      <${State} ok=${ll.ok} error=${ll.error} transient=${ll.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + ll.models.length + " models available."} />
     </label>
 
     <label class="sf">
