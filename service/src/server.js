@@ -108,10 +108,22 @@ const EXPORT_PAGE = fileURLToPath(new URL('../../app/dist-export/export.html', i
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-async function sendExport(res, repo, number) {
+async function sendExport(res, repo, number, format) {
   const story = await readableStory(repo, number);
   if (!story) throw new ApiError(404, 'not_found', 'no story for ' + repo + '#' + number);
   if (!store.isFinished(story)) throw new ApiError(409, 'not_ready', 'the story is still being written');
+  const name = story.pr.repo.replace('/', '-') + '-' + story.pr.number + '-explainer';
+  if (format === 'json') {
+    const json = JSON.stringify(story, null, 2);
+    res.writeHead(200, {
+      ...CORS,
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(json),
+      'Content-Disposition': 'attachment; filename="' + name + '.json"',
+    });
+    res.end(json);
+    return;
+  }
   let page;
   try {
     page = await readFile(EXPORT_PAGE, 'utf8');
@@ -127,7 +139,7 @@ async function sendExport(res, repo, number) {
     ...CORS,
     'Content-Type': 'text/html; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
-    'Content-Disposition': 'attachment; filename="' + story.pr.repo.replace('/', '-') + '-' + story.pr.number + '-explainer.html"',
+    'Content-Disposition': 'attachment; filename="' + name + '.html"',
   });
   res.end(body);
 }
@@ -303,6 +315,7 @@ async function route(req, res) {
   }
 
   if (path === '/api/prs' && req.method === 'GET') {
+    void jobs.refreshMerged();
     sendJson(res, 200, jobs.listItems());
     return;
   }
@@ -333,7 +346,7 @@ async function route(req, res) {
 
   match = path.match(/^\/api\/prs\/([^/]+)\/([^/]+)\/(\d+)\/export$/);
   if (match && req.method === 'GET') {
-    await sendExport(res, match[1] + '/' + match[2], Number(match[3]));
+    await sendExport(res, match[1] + '/' + match[2], Number(match[3]), url.searchParams.get('format') === 'json' ? 'json' : 'html');
     return;
   }
 

@@ -112,6 +112,7 @@ async function fetchPrMeta(repo, number) {
     baseRef: d.base?.ref || '',
     headRef: d.head?.ref || '',
     draft: Boolean(d.draft),
+    merged: Boolean(d.merged_at),
     body: d.body || '',
     additions: d.additions ?? 0,
     deletions: d.deletions ?? 0,

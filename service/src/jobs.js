@@ -48,6 +48,7 @@ function normalizeItem(item) {
     updatedAt: item.updatedAt || new Date().toISOString(),
     openThreads: Number(item.openThreads) || 0,
     outdated: Boolean(item.outdated),
+    merged: Boolean(item.merged),
   };
 }
 
@@ -66,6 +67,7 @@ export function publicItem(item) {
     updatedAt: item.updatedAt,
     openThreads: item.openThreads,
     outdated: item.status === 'done' && item.outdated,
+    merged: item.merged,
   };
 }
 
@@ -81,6 +83,38 @@ export function listItems() {
   return [...items.values()]
     .map(publicItem)
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+}
+
+// A story keeps its item after the PR merges, so the home list asks GitHub for the PR state now and then.
+const MERGED_CHECK_MS = 5 * 60 * 1000;
+const mergedChecks = new Map();
+let mergedRun = null;
+
+async function checkMerged() {
+  const now = Date.now();
+  for (const item of items.values()) {
+    if (item.merged || item.status !== 'done') continue;
+    const k = key(item.repo, item.number);
+    if (now - (mergedChecks.get(k) || 0) < MERGED_CHECK_MS) continue;
+    mergedChecks.set(k, now);
+    try {
+      const meta = await prMeta(item.repo, item.number);
+      if (meta.merged && !item.merged) {
+        item.merged = true;
+        scheduleSave();
+      }
+    } catch (err) {
+      console.error('merged check failed ' + k + ': ' + err.message);
+    }
+  }
+}
+
+export function refreshMerged() {
+  if (mergedRun) return mergedRun;
+  mergedRun = checkMerged().finally(() => {
+    mergedRun = null;
+  });
+  return mergedRun;
 }
 
 function scheduleSave() {
