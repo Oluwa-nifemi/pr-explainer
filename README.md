@@ -142,6 +142,8 @@ GitHub reads retry up to twice after connection failures or HTTP 500, 502, 503 a
 
 If opening a PR still fails, click **Retry** on the error page. You do not need to reload. Logs include each retry and whether the request recovered.
 
+A connection outage during startup does not mean your saved credentials are missing. The app keeps saved stories accessible and shows which connection is unavailable. It checks again automatically and removes the notice after recovery. Setup appears only for missing credentials, rejected credentials or settings that need correction.
+
 ### Export logs for debugging
 
 Open **Settings → Diagnostics → Export logs**. If setup is blocked, click **Diagnostics** on the setup screen. You can also open http://127.0.0.1:5180/?settings=diagnostics directly.
