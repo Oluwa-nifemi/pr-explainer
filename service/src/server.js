@@ -108,13 +108,24 @@ const EXPORT_PAGE = fileURLToPath(new URL('../../app/dist-export/export.html', i
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
+// The JSON export is a copy for pasting to an agent: it drops the fields that only exist so the app can draw itself.
+function agentStory(story) {
+  const { steps = [], generation = {}, ...rest } = story;
+  const { timings, ...gen } = generation;
+  return {
+    ...rest,
+    generation: gen,
+    steps: steps.map(({ diagram, status, order, dependsOn, ...step }) => step),
+  };
+}
+
 async function sendExport(res, repo, number, format) {
   const story = await readableStory(repo, number);
   if (!story) throw new ApiError(404, 'not_found', 'no story for ' + repo + '#' + number);
   if (!store.isFinished(story)) throw new ApiError(409, 'not_ready', 'the story is still being written');
   const name = story.pr.repo.replace('/', '-') + '-' + story.pr.number + '-explainer';
   if (format === 'json') {
-    const json = JSON.stringify(story, null, 2);
+    const json = JSON.stringify(agentStory(story), null, 2);
     res.writeHead(200, {
       ...CORS,
       'Content-Type': 'application/json; charset=utf-8',
