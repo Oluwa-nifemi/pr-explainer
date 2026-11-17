@@ -60,7 +60,7 @@ export function App() {
     : route.pr
     ? html`<${LivePage} key=${route.pr} prKey=${route.pr} />`
     : !route.story
-    ? html`<${Entry} go=${(name) => navigate("?story=" + encodeURIComponent(name))} goPr=${(key) => navigate("?pr=" + key)} goSettings=${() => navigate("?settings=pipeline")} />`
+    ? html`<${Entry} go=${(name) => navigate("?story=" + encodeURIComponent(name))} goPr=${(key) => navigate("?pr=" + key)} goSettings=${() => navigate("?settings=features")} />`
     : html`<${StoryPage} key=${route.story} route=${route} />`;
   const unavailable = [["github", "GitHub"], ["litellm", "LiteLLM"]].filter(([key]) => st.status?.[key]?.transient).map(([, name]) => name);
   return html`${unavailable.length ? html`<div class="connection-notice" role="status"><span><b>${unavailable.join(" and ")} ${unavailable.length === 1 ? "is" : "are"} temporarily unavailable.</b> Your credentials are configured. Rechecking automatically.</span><button class="btn ghost small" onClick=${() => navigate("?settings=diagnostics")}>Diagnostics</button></div>` : null}${page}${st.open && st.status ? html`<${Setup} status=${st.status} modal=${true} />` : null}`;
