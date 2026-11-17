@@ -363,7 +363,23 @@ export function SettingsPage({ tab, go }) {
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [fading, setFading] = useState(false);
   const status = useSetup().status;
+
+  // The saved notice goes away by itself. Anything that needs a decision (unsaved changes, a
+  // failed save) stays until it is handled.
+  useEffect(() => {
+    if (!saved) {
+      setFading(false);
+      return;
+    }
+    const fade = setTimeout(() => setFading(true), 2200);
+    const hide = setTimeout(() => setSaved(false), 2600);
+    return () => {
+      clearTimeout(fade);
+      clearTimeout(hide);
+    };
+  }, [saved]);
 
   useEffect(() => {
     if (data || current === "diagnostics") return;
@@ -414,7 +430,7 @@ export function SettingsPage({ tab, go }) {
       ${data && current !== "diagnostics" ? html`<p class="sp-foot">Your changes are saved to <code>${data.path}</code>, outside the project, so git never sees them. Delete the file to go back to the defaults.</p>` : null}
     </div>
     ${dirty || saved || problem
-      ? html`<div class="sp-savebar" role="status">
+      ? html`<div class=${cx("sp-savebar", fading && "out")} role="status">
           ${problem
             ? html`<span class="sp-bad">${problem}</span>`
             : saved && !dirty
