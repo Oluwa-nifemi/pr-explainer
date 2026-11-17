@@ -4,11 +4,22 @@ const PY_KW = new Set("and as assert async await class def elif else except fina
 const TS_KW = new Set("import export from const let var function return if else for while new class extends implements interface type enum async await as of in typeof void null undefined true false satisfies default throw try catch switch case break continue readonly private public static".split(" "));
 const PY_CONST = new Set(["None", "True", "False", "self", "cls"]);
 
-const PY_RE = /(#.*$)|("""|''')|((?:[rRfFbB]{1,2})?"(?:[^"\\]|\\.)*"|(?:[rRfFbB]{1,2})?'(?:[^'\\]|\\.)*')|(\b\d[\d_.]*\b)|(@[\w.]+)|(\b[A-Za-z_]\w*\b)/g;
+const PY_RE = /(#.*$)|([rRuUbBfF]{0,2}(?:"""|'''))|((?:[rRfFbB]{1,2})?"(?:[^"\\]|\\.)*"|(?:[rRfFbB]{1,2})?'(?:[^'\\]|\\.)*')|(\b\d[\d_.]*\b)|(@[\w.]+)|(\b[A-Za-z_]\w*\b)/g;
 const TS_RE = /(\/\/.*$)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|(\b\d[\d_.]*\b)|(\b[A-Za-z_$][\w$]*\b)/g;
 const JSON_RE = /("(?:[^"\\]|\\.)*")|(\b\d[\d.]*\b)|(\b(?:true|false|null)\b)/g;
 
 const span = (cls, text) => html`<span class=${"tk-" + cls}>${text}</span>`;
+
+// A hunk starts with no parser state, so a line that only closes a docstring, such as `{name}"""`
+// or an indented `"""`, must not be read as opening one. Only quotes that start a value open state.
+const VALUE_START = /[=([{,:+%]$/;
+const KEYWORD_END = /\b(?:return|yield|assert|lambda|else|in|not|and|or)$/;
+const opensDoc = (line, at, end) => {
+  const before = line.slice(0, at).trimEnd();
+  if (before !== "" && (VALUE_START.test(before) || KEYWORD_END.test(before))) return true;
+  const after = line.slice(end).trim();
+  return after !== "" && !after.startsWith("#");
+};
 
 // Returns { nodes, state }. 'state' carries open triple-quote strings across lines (python).
 function pyLine(line, state) {
@@ -29,16 +40,20 @@ function pyLine(line, state) {
     i = m.index + m[0].length;
     if (m[1]) nodes.push(span("com", m[1]));
     else if (m[2]) {
-      const close = line.indexOf(m[2], i);
-      if (close === -1) {
+      const quote = m[2].slice(-3);
+      const close = line.indexOf(quote, i);
+      if (close >= 0) {
+        nodes.push(span("str", line.slice(m.index, close + 3)));
+        i = close + 3;
+        PY_RE.lastIndex = i;
+      } else if (opensDoc(line, m.index, i)) {
         nodes.push(span("str", line.slice(m.index)));
-        state = { doc: m[2] };
+        state = { doc: quote };
         i = line.length;
         break;
+      } else {
+        nodes.push(m[2]);
       }
-      nodes.push(span("str", line.slice(m.index, close + 3)));
-      i = close + 3;
-      PY_RE.lastIndex = i;
     } else if (m[3]) nodes.push(span("str", m[3]));
     else if (m[4]) nodes.push(span("num", m[4]));
     else if (m[5]) nodes.push(span("dec", m[5]));
