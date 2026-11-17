@@ -204,6 +204,9 @@ export function sanitize(raw) {
   const max = Number(raw.files?.limits?.maxFileChangedLines);
   if (Number.isInteger(max) && max > 0 && max !== DEFAULT_MAX_FILE_LINES) files.limits = { maxFileChangedLines: max };
   if (Object.keys(files).length) out.files = files;
+
+  const watch = raw.watch?.enabled;
+  if (typeof watch === 'boolean') out.watch = { enabled: watch };
   return out;
 }
 
@@ -244,9 +247,16 @@ export function reloadOverrides() {
 
 reloadOverrides();
 
+// Settings that do not change what a story contains. The watcher decides when a story is made,
+// not what goes in it, so toggling it must not mark saved stories as outdated.
+const NOT_GENERATION = new Set(['watch']);
+
 export function overridesHash() {
-  if (!Object.keys(overrides).length) return '';
-  return createHash('sha1').update(JSON.stringify(overrides)).digest('hex').slice(0, 12);
+  const keys = Object.keys(overrides).filter((k) => !NOT_GENERATION.has(k));
+  if (!keys.length) return '';
+  const generation = {};
+  for (const k of keys) generation[k] = overrides[k];
+  return createHash('sha1').update(JSON.stringify(generation)).digest('hex').slice(0, 12);
 }
 
 // ---------- reading the effective settings ----------
@@ -331,6 +341,7 @@ export function describeSettings() {
       hideable: HIDEABLE_ROLES,
       limits: { maxFileChangedLines: { default: DEFAULT_MAX_FILE_LINES, value: overrides.files?.limits?.maxFileChangedLines ?? null } },
     },
+    watch: { enabled: overrides.watch?.enabled ?? null },
     overrides,
   };
 }
