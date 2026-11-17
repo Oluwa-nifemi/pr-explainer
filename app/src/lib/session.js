@@ -196,19 +196,32 @@ export function showOverview() {
   window.scrollTo({ top: 0 });
 }
 
-export function goStep(id, { smooth = true, fromOverview = false } = {}) {
+// `reveal` returns the element to land on instead of the top of the chapter. It is used when a click opens
+// a step and a line in it: one scroll to the line, never a scroll to the chapter and then a second one.
+const lineEl = (hunkId, line) =>
+  (line != null && document.querySelector(`[data-ln="${lineKey(hunkId, "RIGHT", line)}"]`)) || document.querySelector(`[data-hunk="${hunkId}"]`);
+
+function flashAndScroll(el, pad) {
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - pad, behavior: "smooth" });
+  navLockUntil = Date.now() + 900;
+  el.classList.add("flash");
+  setTimeout(() => el.classList.remove("flash"), 1800);
+}
+
+export function goStep(id, { smooth = true, reveal = null } = {}) {
   const s = session.get();
   const wasWalk = s.view === "walk";
   session.set({ view: "walk", current: id, tab: wasWalk ? s.tab : "step" });
   setHash(id);
   navLockUntil = Date.now() + (smooth && wasWalk ? 900 : 300);
   const doScroll = () => {
-    const el = document.querySelector(`[data-step="${id}"]`);
+    const el = (reveal && reveal()) || document.querySelector(`[data-step="${id}"]`);
     if (!el) return;
+    if (reveal) return flashAndScroll(el, 180);
     const top = el.getBoundingClientRect().top + window.scrollY - 60;
     window.scrollTo({ top, behavior: smooth && wasWalk ? "smooth" : "auto" });
   };
-  if (wasWalk) doScroll();
+  if (wasWalk && !reveal) doScroll();
   else requestAnimationFrame(() => requestAnimationFrame(doScroll));
 }
 
@@ -234,31 +247,21 @@ export function jumpToLine({ stepId, path, line }) {
   const hunk = step.hunks.find((h) => h.path === path && line >= h.newStart && line < h.newStart + Math.max(1, h.newLines)) || step.hunks.find((h) => h.path === path);
   if (!hunk) return;
   session.set((s) => ({ viewed: { ...s.viewed, [hunk.id]: false } }));
+  if (session.get().view !== "walk" || session.get().current !== stepId) {
+    return goStep(stepId, { reveal: () => lineEl(hunk.id, line) });
+  }
   setTimeout(() => {
-    const el = document.querySelector(`[data-ln="${lineKey(hunk.id, "RIGHT", line)}"]`) || document.querySelector(`[data-hunk="${hunk.id}"]`);
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY - 180;
-    window.scrollTo({ top, behavior: "smooth" });
-    navLockUntil = Date.now() + 900;
-    el.classList.add("flash");
-    setTimeout(() => el.classList.remove("flash"), 1800);
+    const el = lineEl(hunk.id, line);
+    if (el) flashAndScroll(el, 180);
   }, 60);
 }
 
 // ---------- review state ----------
-function flashAndScroll(el) {
-  const top = el.getBoundingClientRect().top + window.scrollY - 180;
-  window.scrollTo({ top, behavior: "smooth" });
-  navLockUntil = Date.now() + 900;
-  el.classList.add("flash");
-  setTimeout(() => el.classList.remove("flash"), 1800);
-}
-
 export function jumpToHunk({ hunkId, line }) {
   session.set((s) => ({ viewed: { ...s.viewed, [hunkId]: false } }));
   setTimeout(() => {
-    const el = (line != null && document.querySelector(`[data-ln="${lineKey(hunkId, "RIGHT", line)}"]`)) || document.querySelector(`[data-hunk="${hunkId}"]`);
-    if (el) flashAndScroll(el);
+    const el = lineEl(hunkId, line);
+    if (el) flashAndScroll(el, 180);
   }, 60);
 }
 
@@ -319,29 +322,14 @@ export function expandGap(key, change) {
   }));
 }
 
-// A node in the current step's diagram: jump to its line in this step, else to the step that changes it.
 export function jumpToNode(stepId, node) {
-  const story = live.story;
-  const here = story.steps.find((s) => s.id === stepId);
-  const t = nodeTarget(here, node);
-  if (t) return jumpToHunk(t);
-  for (const s of story.steps) {
-    if (s.id === stepId || s.status !== "ready") continue;
-    const o = nodeTarget(s, node);
-    if (o) {
-      goStep(s.id);
-      setTimeout(() => jumpToHunk(o), 700);
-      return;
-    }
-  }
+  const step = live.story?.steps.find((s) => s.id === stepId);
+  const target = nodeTarget(step, node);
+  if (target) jumpToHunk(target);
 }
 
 export function nodeIsLinked(stepId, node) {
-  const story = live.story;
-  if (!story) return false;
-  const here = story.steps.find((s) => s.id === stepId);
-  if (nodeTarget(here, node)) return true;
-  return story.steps.some((s) => s.id !== stepId && s.status === "ready" && nodeTarget(s, node));
+  return !!nodeTarget(live.story?.steps.find((s) => s.id === stepId), node);
 }
 
 export function toggleReviewed(id) {

@@ -1,4 +1,4 @@
-import { session, live, goStep, jumpToLine, addComment } from "./session.js";
+import { session, live, jumpToLine, addComment } from "./session.js";
 import { getChat, streamChat } from "./api.js";
 import { setup } from "./setup.js";
 import { uid, fileName, stepNumber } from "./util.js";
@@ -114,8 +114,7 @@ export function findRef(path, line) {
 }
 
 export function openRef({ step, hunk, line }) {
-  goStep(step.id);
-  setTimeout(() => jumpToLine({ stepId: step.id, path: hunk.path, line }), 450);
+  jumpToLine({ stepId: step.id, path: hunk.path, line });
 }
 
 export function addDraftComment(msgId, d) {

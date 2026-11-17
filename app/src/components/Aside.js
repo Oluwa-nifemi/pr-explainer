@@ -46,8 +46,8 @@ function CommentsTab({ story }) {
   const jumpReply = (t) => {
     const stepId = t?.placement?.stepId;
     if (!stepId) return;
-    goStep(stepId);
-    if (t.path && t.line != null) setTimeout(() => jumpToLine({ stepId, path: t.path, line: t.line }), 450);
+    if (t.path && t.line != null) jumpToLine({ stepId, path: t.path, line: t.line });
+    else goStep(stepId);
   };
   const byStep = story.steps.map((st) => ({ st, list: comments.filter((c) => c.stepId === st.id) })).filter((x) => x.list.length);
   const extra = comments.filter((c) => c.stepId === "extras");
@@ -59,7 +59,7 @@ function CommentsTab({ story }) {
           ${byStep.map(
             ({ st, list }) => html`<div class="cgroup" key=${st.id}>
               <button class="cgroup-head" onClick=${() => goStep(st.id)}>Step ${st.order} · ${st.title}</button>
-              ${list.map((c) => html`<${CommentCard} key=${c.id} c=${c} onJump=${() => { goStep(st.id); if (c.scope !== "step") setTimeout(() => jumpToLine({ stepId: st.id, path: c.path, line: c.line }), 450); }} />`)}
+              ${list.map((c) => html`<${CommentCard} key=${c.id} c=${c} onJump=${() => (c.scope === "step" || c.line == null ? goStep(st.id) : jumpToLine({ stepId: st.id, path: c.path, line: c.line }))} />`)}
             </div>`
           )}
           ${extra.length

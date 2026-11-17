@@ -1,3 +1,5 @@
+import { diagramTarget } from "../../../pipeline/src/diagram-target.js";
+
 // Tests and docs leave the walkthrough and go to one closing section. Steps left with no hunks are dropped.
 const TEST_RE = /(\.test\.|\.spec\.|__tests__\/|(^|\/)tests?\/|(^|\/)test_[^/]*\.py$|_test\.(py|go)$)/;
 const DOC_RE = /\.(md|mdx|rst)$/i;
@@ -50,29 +52,6 @@ export function prepareStory(story) {
   return { ...story, steps, extras };
 }
 
-const plainTokens = (label) => {
-  const raw = label.replace(/\(\)$/, "").trim();
-  const out = [raw];
-  raw.split(/[\s/+,]+/).forEach((t) => t.length > 3 && out.push(t.replace(/\(\)$/, "")));
-  return [...new Set(out)];
-};
-
-// Where a diagram node points in the step's diff: the first changed or context line that names it, else its file.
 export function nodeTarget(step, node) {
-  if (!step) return null;
-  for (const tok of plainTokens(node.label)) {
-    for (const h of step.hunks) {
-      let n = h.newStart;
-      for (const l of h.patch.split("\n").slice(1)) {
-        const del = l.startsWith("-");
-        if (l.slice(1).includes(tok)) return { hunkId: h.id, path: h.path, line: del ? null : n };
-        if (!del) n++;
-      }
-    }
-  }
-  if (node.path) {
-    const h = step.hunks.find((x) => x.path === node.path);
-    if (h) return { hunkId: h.id, path: h.path, line: null };
-  }
-  return null;
+  return step ? diagramTarget(step.hunks, node) : null;
 }
