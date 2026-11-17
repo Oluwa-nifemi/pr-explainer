@@ -437,7 +437,7 @@ export function SettingsPage({ tab, go }) {
             ? html`<span>Saved. Prompt and file changes make earlier stories Outdated until you regenerate them.</span>`
             : html`<span>You have unsaved changes. Prompt and file changes make earlier stories Outdated.</span>`}
           ${dirty ? html`<button class="btn ghost small" onClick=${() => (setDraft(clone(data.overrides)), setProblem(null))} disabled=${saving}>Discard</button>` : null}
-          ${dirty ? html`<button class="btn primary small" onClick=${save} disabled=${saving}>${saving ? "Saving…" : "Save"}</button>` : null}
+          ${dirty ? html`<button class="btn primary small" onClick=${save} disabled=${saving}>Save</button>` : null}
         </div>`
       : null}
   </main>`;
