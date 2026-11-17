@@ -7,11 +7,6 @@ import { clearChat } from "../lib/api.js";
 import { session, useSession, live, removeCtx, toast } from "../lib/session.js";
 import { useSetup } from "../lib/setup.js";
 
-const MODELS = {
-  deepseek: { label: "DeepSeek", model: "DeepSeek V4.1 Flash", note: "Fast", hint: "Thinking low" },
-  opus: { label: "Opus", model: "Claude Opus 5.5", note: "Deeper", hint: "Thinking medium, slower" },
-};
-
 const CHIP_KIND = { line: "line", hunk: "hunk", step: "step", quote: "text", question: "question" };
 
 function Chip({ chip, onRemove }) {
@@ -45,7 +40,7 @@ function Draft({ msg }) {
 }
 
 function Label({ model }) {
-  return html`<div class="ai-label"><i class="ai-mark"></i>Explainer<span class="ai-model">${MODELS[model || "deepseek"]?.model || model}</span></div>`;
+  return html`<div class="ai-label"><i class="ai-mark"></i>Explainer<span class="ai-model">${model}</span></div>`;
 }
 
 export function ChatPanel({ story }) {
@@ -57,7 +52,10 @@ export function ChatPanel({ story }) {
   const focus = useSession((s) => s.focusChat);
   const picked = useSession((s) => s.chatModel);
   const status = useSetup().status;
-  const chatModel = picked || status?.chatModel || status?.storyModel || "deepseek";
+  const provider = status?.provider || "litellm";
+  const options = status?.providers?.[provider]?.models || [];
+  const chatModel = options.some((o) => o.id === picked) ? picked : status?.chatModel || options[0]?.id || "deepseek";
+  const chatLabel = options.find((o) => o.id === chatModel)?.model || chatModel;
   const text = useSession((s) => s.chatInput);
   const setText = (v) => session.set({ chatInput: v });
   const list = useRef(null);
@@ -112,7 +110,7 @@ export function ChatPanel({ story }) {
       })}
       ${liveMsg
         ? html`<div class="msg ai">
-            <${Label} model=${chatModel} />
+            <${Label} model=${chatLabel} />
             <${Lookups} items=${liveMsg.lookups} running=${!liveMsg.text} />
             ${liveMsg.text
               ? html`<div class="bubble streaming"><${Md} text=${liveMsg.text} refs=${true} /></div>`
@@ -153,9 +151,9 @@ export function ChatPanel({ story }) {
         <button class="send" disabled=${!text.trim() || busy || !isLive} onClick=${send} aria-label="Send">↑</button>
       </div>
       <div class="model-row" role="radiogroup" aria-label="Model">
-        ${Object.entries(MODELS).map(
-          ([id, m]) => html`<button role="radio" aria-checked=${chatModel === id} class=${cx("model-opt", chatModel === id && "on")} title=${m.model + " · " + m.hint} onClick=${() => session.set({ chatModel: id })}>
-            <b>${m.label}</b><span>${m.note}</span>
+        ${options.map(
+          (o) => html`<button role="radio" aria-checked=${chatModel === o.id} class=${cx("model-opt", chatModel === o.id && "on")} title=${o.model} onClick=${() => session.set({ chatModel: o.id })}>
+            <b>${o.label}</b>
           </button>`
         )}
         <button class="link model-note" disabled=${!chat.length || busy} onClick=${clear}>Clear chat</button>

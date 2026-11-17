@@ -261,8 +261,7 @@ async function compute() {
       ...(claudeCode.ok ? {} : { error: claudeCode.error }),
     },
     provider,
-    // Chat needs tool calls, so it always runs on LiteLLM. Tell the app which profile to use for it.
-    chatModel: provider === 'litellm' ? creds.storyModel : 'deepseek',
+    chatModel: creds.storyModel,
     storyModel: creds.storyModel,
     storyModelSource: creds.sources.storyModel,
     providers: Object.fromEntries(

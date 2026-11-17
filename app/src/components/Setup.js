@@ -168,7 +168,7 @@ export function Setup({ status, modal, embedded }) {
             html`<button type="button" role="radio" aria-checked=${provider === id} disabled=${locked} class=${cx("model-opt", provider === id && "on")} onClick=${() => pickProvider(id)}><b>${providers[id].label}</b></button>`
         )}
       </div>
-      <span class="sf-help">${provider === "claude-code" ? "Stories run on your Claude Code login. Chat stays on LiteLLM, because it uses tool calls." : "Stories run on your LiteLLM gateway."}</span>
+      <span class="sf-help">${provider === "claude-code" ? "Stories and chat run on your Claude Code login. Lookups in chat are passed through the bridge." : "Stories run on your LiteLLM gateway."}</span>
     </div>
 
     ${provider === "litellm"
@@ -189,19 +189,6 @@ export function Setup({ status, modal, embedded }) {
           <input type="text" spellcheck="false" value=${claudeBase} onInput=${(e) => { setClaudeBase(e.currentTarget.value); dropTest("claude-code"); }} />
           <span class="sf-help">Where the bridge runs. Inside Docker use <code>http://host.docker.internal:5191</code>. Start it with <code>node bridge/claude-bridge.js</code> on the host.</span>
           <${State} ok=${ccView.ok} error=${ccView.error} transient=${ccView.transient} source=${cc.source} envName="PR_EXPLAINER_CLAUDE_BASE_URL" okText=${ccView.ok ? "Working. Claude Code " + (ccView.version || "") + " is signed in" + (ccView.account ? " as " + ccView.account : "") + "." : undefined} />
-        </label>
-
-        <label class="sf">
-          <span class="sf-label">LiteLLM API key for chat</span>
-          <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.source === "file" ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => { setKey(e.currentTarget.value); dropTest("litellm"); }} />
-          <span class="sf-help">Chat still needs LiteLLM, because it reads the repo with tool calls. Stories do not.</span>
-          <${State} ok=${llView.ok} error=${llView.error} transient=${llView.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + (llView.models?.length || 0) + " models available."} />
-        </label>
-
-        <label class="sf">
-          <span class="sf-label">LiteLLM base URL</span>
-          <input type="text" spellcheck="false" value=${base} onInput=${(e) => { setBase(e.currentTarget.value); dropTest("litellm"); }} />
-          <span class="sf-help">Without <code>/v1</code>. Chat calls <code>/chat/completions</code> under it.</span>
         </label>`}
 
     <div class="sf">
@@ -225,7 +212,7 @@ export function Setup({ status, modal, embedded }) {
             <p class="conn-detail">${gh.error || (gh.ok ? "Signed in as " + gh.login + "." : "No token yet.")}</p>
           </div>
         </div>
-        ${PROVIDER_ORDER.filter((id) => providers[id]).map(connection)}
+        ${PROVIDER_ORDER.filter((id) => providers[id] && id === provider).map(connection)}
       </div>
     </div>
 

@@ -28,7 +28,6 @@ export const MODELS = {
     model: fastModel,
     label: fastModel,
     reasoning: { story: 'none', chat: 'medium' },
-    chat: true,
   },
   opus: {
     provider: 'litellm',
@@ -39,7 +38,6 @@ export const MODELS = {
     reasoning: { story: null, chat: 'medium' },
     maxConcurrency: 4,
     dropSchemaKeys: ['minItems', 'maxItems'],
-    chat: true,
   },
   claude: {
     provider: 'claude-code',
@@ -61,7 +59,6 @@ export const MODELS = {
 
 export const providerOf = (name) => MODELS[name]?.provider || 'litellm';
 export const modelsFor = (provider) => Object.keys(MODELS).filter((name) => providerOf(name) === provider);
-export const chatModels = () => Object.keys(MODELS).filter((name) => MODELS[name].chat);
 
 let storyModel = MODELS[process.env.PR_EXPLAINER_STORY_MODEL] ? process.env.PR_EXPLAINER_STORY_MODEL : 'deepseek';
 

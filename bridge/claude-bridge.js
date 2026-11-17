@@ -120,17 +120,68 @@ async function health() {
 }
 
 // The pipeline sends an OpenAI message list. Claude Code takes one prompt and one system prompt.
+// Tool calls are paired back up here, so a result keeps the name of the call that asked for it.
 export function flatten(messages) {
   const system = [];
   const turns = [];
+  const names = new Map();
   for (const m of Array.isArray(messages) ? messages : []) {
     const text = typeof m?.content === 'string' ? m.content : Array.isArray(m?.content) ? m.content.map((p) => p?.text || '').join('') : '';
+    if (m?.role === 'assistant') {
+      for (const call of m.tool_calls || []) {
+        if (call?.id && call?.function?.name) names.set(call.id, call.function.name);
+      }
+    }
+    if (m?.role === 'tool') {
+      const name = names.get(m.tool_call_id) || 'tool';
+      if (text) turns.push('Result of ' + name + ':\n' + text);
+      continue;
+    }
     if (!text) continue;
     if (m.role === 'system') system.push(text);
     else if (m.role === 'assistant') turns.push('Assistant:\n' + text);
     else turns.push(turns.length ? 'User:\n' + text : text);
   }
   return { system: system.join('\n\n'), prompt: turns.join('\n\n') };
+}
+
+// Claude Code has no tool channel here, so lookups travel as one line of text at the start
+// of the answer. This keeps normal answers streaming and gives the app OpenAI shaped calls.
+const LOOKUP = 'LOOKUP:';
+
+function toolBlock(tools) {
+  if (!tools.length) return '';
+  const list = tools
+    .map((t) => '- ' + t.name + ': ' + (t.description || '').replace(/\s+/g, ' ').trim() + '\n  arguments: ' + JSON.stringify(t.parameters || {}))
+    .join('\n');
+  return [
+    '',
+    'You can look things up before you answer. To ask for a lookup, reply with exactly one line, starting with the first character:',
+    LOOKUP + ' {"name":"<tool name>","arguments":{...}}',
+    'For several lookups use ' + LOOKUP + ' [{"name":...,"arguments":{...}}, ...]',
+    'Then stop and wait for the results. If you do not need a lookup, answer directly and never write ' + LOOKUP,
+    'Tools:',
+    list,
+  ].join('\n');
+}
+
+function parseLookup(text) {
+  const at = text.indexOf(LOOKUP);
+  if (at < 0) return null;
+  const raw = text.slice(at + LOOKUP.length).trim();
+  const open = raw.search(/[[{]/);
+  if (open < 0) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw.slice(open));
+  } catch {
+    return null;
+  }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  const calls = list
+    .filter((c) => c && typeof c.name === 'string')
+    .map((c) => ({ name: c.name, arguments: c.arguments && typeof c.arguments === 'object' ? c.arguments : {} }));
+  return calls.length ? calls : null;
 }
 
 function claudeArgs({ model, schema, system }) {
@@ -163,7 +214,10 @@ function chunkOf(id, model, delta, finish = null) {
 
 async function complete(req, res, body) {
   const model = typeof body?.model === 'string' ? body.model : 'claude-code-opus';
+  const incoming = Array.isArray(body?.tools) ? body.tools.map((t) => t?.function).filter((f) => f && f.name) : [];
+  const toolsOn = incoming.length > 0 && body?.tool_choice !== 'none';
   const { system, prompt } = flatten(body?.messages);
+  const fullSystem = toolsOn ? system + '\n' + toolBlock(incoming) : system;
   const schema = body?.response_format?.json_schema?.schema || null;
   if (!prompt.trim()) return send(res, 400, { error: { message: 'no messages in the request' } });
 
@@ -184,7 +238,7 @@ async function complete(req, res, body) {
   }
   const id = 'chatcmpl-' + Math.random().toString(16).slice(2, 14);
   const startedAt = Date.now();
-  child = spawn(process.env.BRIDGE_CLAUDE_BIN || 'claude', claudeArgs({ model, schema, system }), {
+  child = spawn(process.env.BRIDGE_CLAUDE_BIN || 'claude', claudeArgs({ model, schema, system: fullSystem }), {
     cwd: tmpdir(),
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -202,16 +256,41 @@ async function complete(req, res, body) {
   let usage = null;
   let failure = null;
   let models = null;
+  // Until the answer proves it is not a lookup, hold the first few characters back.
+  let head = '';
+  let mode = toolsOn ? 'unknown' : 'text';
+
+  const open = () => {
+    if (models !== null) return;
+    models = model;
+    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
+    res.write('data: ' + JSON.stringify(chunkOf(id, models, { role: 'assistant', content: '' })) + '\n\n');
+  };
 
   const write = (text) => {
-    if (models === null) {
-      models = model;
-      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
-      res.write('data: ' + JSON.stringify(chunkOf(id, models, { role: 'assistant', content: '' })) + '\n\n');
-    }
+    open();
     if (!text) return;
     content += text;
     res.write('data: ' + JSON.stringify(chunkOf(id, models, { content: text })) + '\n\n');
+  };
+
+  const push = (text) => {
+    if (!text) return;
+    if (mode === 'text') return write(text);
+    if (mode === 'lookup') {
+      content += text;
+      return;
+    }
+    head += text;
+    if (head.length < 6 && !head.includes('\n')) return;
+    if (head.trimStart().toUpperCase().startsWith('LOOKUP')) {
+      mode = 'lookup';
+      content += head;
+    } else {
+      mode = 'text';
+      write(head);
+    }
+    head = '';
   };
 
   const handle = (event) => {
@@ -224,7 +303,7 @@ async function complete(req, res, body) {
       // A schema answer arrives as tool input JSON. Never mix the two, or the answer doubles.
       if (channel && channel !== kind) return;
       channel ||= kind;
-      write(kind === 'text' ? delta.text || '' : delta.partial_json || '');
+      push(kind === 'text' ? delta.text || '' : delta.partial_json || '');
       return;
     }
     if (event.type === 'result') {
@@ -239,7 +318,7 @@ async function complete(req, res, body) {
         cache_creation_input_tokens: u.cache_creation_input_tokens || 0,
       };
       const final = typeof event.result === 'string' ? event.result : '';
-      if (!content && final) write(final);
+      if (!content && !head && final) push(final);
     }
   };
 
@@ -270,17 +349,41 @@ async function complete(req, res, body) {
       res.end();
       return;
     }
-    if (models === null) {
-      models = model;
-      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
-      res.write('data: ' + JSON.stringify(chunkOf(id, models, { role: 'assistant', content: '' })) + '\n\n');
+    if (mode === 'unknown' && head) {
+      if (head.trimStart().toUpperCase().startsWith('LOOKUP')) {
+        mode = 'lookup';
+        content += head;
+      } else write(head);
+      head = '';
     }
-    res.write('data: ' + JSON.stringify(chunkOf(id, models, {}, 'stop')) + '\n\n');
+    const calls = mode === 'lookup' ? parseLookup(content) : null;
+    open();
+    if (mode === 'lookup' && !calls) {
+      // The marker was there but the JSON was not. Say so rather than pass gibberish on.
+      failure = 'claude asked for a lookup but the call was not valid JSON: ' + content.slice(0, 200);
+      done();
+      log(model, startedAt, 0, 0, 'failed: bad lookup');
+      res.write('data: ' + JSON.stringify({ error: { message: failure } }) + '\n\n');
+      res.end();
+      return;
+    }
+    if (calls) {
+      const delta = {
+        tool_calls: calls.map((c, i) => ({
+          index: i,
+          id: 'call_' + Date.now().toString(36) + i,
+          type: 'function',
+          function: { name: c.name, arguments: JSON.stringify(c.arguments) },
+        })),
+      };
+      res.write('data: ' + JSON.stringify(chunkOf(id, models, delta)) + '\n\n');
+    }
+    res.write('data: ' + JSON.stringify(chunkOf(id, models, {}, calls ? 'tool_calls' : 'stop')) + '\n\n');
     if (usage) res.write('data: ' + JSON.stringify({ id, object: 'chat.completion.chunk', model: models, choices: [], usage }) + '\n\n');
     res.write('data: [DONE]\n\n');
     res.end();
     done();
-    log(model, startedAt, usage?.prompt_tokens || 0, usage?.completion_tokens || 0, 'ok');
+    log(model, startedAt, usage?.prompt_tokens || 0, usage?.completion_tokens || 0, calls ? 'lookup x' + calls.length : 'ok');
   });
 
   res.on('close', () => {

@@ -5,6 +5,15 @@ import { uid, fileName, stepNumber } from "./util.js";
 
 let controller = null;
 
+// The saved pick can belong to the other provider. Only the current provider's models are valid.
+function chatModelNow() {
+  const status = setup.get().status;
+  const options = status?.providers?.[status?.provider || "litellm"]?.models || [];
+  const picked = session.get().chatModel;
+  if (options.some((o) => o.id === picked)) return picked;
+  return status?.chatModel || options[0]?.id || "deepseek";
+}
+
 export function abortChat() {
   controller?.abort();
   controller = null;
@@ -56,7 +65,7 @@ export function sendChat(text) {
   const quoted = chip && (chip.type === "quote" || chip.type === "question") && chip.snippet;
   const message = quoted ? "About: “" + clip(chip.snippet) + "”\n\n" + typed : typed;
   session.set({ ctx: [] });
-  run({ message, model: s.chatModel || setup.get().status?.chatModel || "deepseek", context: contextOf(chip), drafts: collectDrafts() }, false);
+  run({ message, model: chatModelNow(), context: contextOf(chip), drafts: collectDrafts() }, false);
 }
 
 export function retryChat() {

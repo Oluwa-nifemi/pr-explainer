@@ -25,7 +25,7 @@ export function claudeSettings() {
   return { baseUrl, apiKey: '' };
 }
 
-// Story calls follow the profile's provider. Chat always stays on LiteLLM, because it uses tool calls.
+// Story calls follow the profile's provider. The chat service resolves its own base URL per model.
 // The model is an argument, not the global setting: a generation keeps the provider it started on.
 export function storySettings(model = getStoryModel()) {
   return providerOf(model) === 'claude-code' ? claudeSettings() : llmSettings();

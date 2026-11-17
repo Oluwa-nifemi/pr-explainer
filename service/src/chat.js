@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { numberedPatch } from '../../pipeline/src/diff.js';
-import { chatModels, getStoryModel } from '../../pipeline/src/models.js';
+import { MODELS, getStoryModel, providerOf } from '../../pipeline/src/models.js';
 import { createToolRunner, TOOLS } from './chat-tools.js';
 import { LlmError, streamAnswer } from './chatllm.js';
 import { resolve as resolveCredentials } from './credentials.js';
@@ -34,11 +34,8 @@ function hunkText(hunk) {
 }
 
 export function normalizeModel(value) {
-  const allowed = chatModels();
-  if (value === undefined || value === null || value === '') {
-    const story = getStoryModel();
-    return { model: allowed.includes(story) ? story : allowed[0] };
-  }
+  const allowed = Object.keys(MODELS);
+  if (value === undefined || value === null || value === '') return { model: getStoryModel() };
   if (!allowed.includes(value)) return { error: 'model must be ' + allowed.join(' or ') };
   return { model: value };
 }
@@ -163,8 +160,12 @@ async function withTimeout(promise, ms, what) {
 }
 
 export async function ask({ repo, number, headSha, story, meta, history, message, model, context, drafts, onEvent, signal, log = () => {} }) {
-  const { litellmApiKey, litellmBaseUrl } = await resolveCredentials();
-  if (!litellmApiKey) throw new LlmError(409, 'Chat needs a LiteLLM connection. Add one in Settings, then Connections.');
+  const { litellmApiKey, litellmBaseUrl, claudeBaseUrl } = await resolveCredentials();
+  // Chat follows the provider that writes stories. Both wires carry the same tool calls.
+  const viaClaude = providerOf(model) === 'claude-code';
+  if (!viaClaude && !litellmApiKey) throw new LlmError(409, 'No LiteLLM key is saved. Add one in Settings, then Connections.');
+  const chatBaseUrl = viaClaude ? claudeBaseUrl : litellmBaseUrl;
+  const chatApiKey = viaClaude ? '' : litellmApiKey;
   const baseSha = story?.pr?.baseSha || meta?.baseSha || '';
   const runner = createToolRunner({ repo, number, story, headSha, baseSha, drafts });
   const messages = [{ role: 'system', content: SYSTEM + '\n\n' + contextText(story, meta, context) }];
@@ -188,8 +189,8 @@ export async function ask({ repo, number, headSha, story, meta, history, message
       model,
       messages,
       tools: TOOLS,
-      baseUrl: litellmBaseUrl,
-      apiKey: litellmApiKey,
+      baseUrl: chatBaseUrl,
+      apiKey: chatApiKey,
       onDelta: (text) => onEvent('delta', { text }),
       signal,
     });

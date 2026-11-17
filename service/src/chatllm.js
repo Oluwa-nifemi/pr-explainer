@@ -125,7 +125,7 @@ export async function streamAnswer({
       }
     }
   } catch (err) {
-    if (!signal?.aborted) console.error('litellm chat failed durationMs=' + (Date.now() - startedAt) + ' timedOut=' + ctrl.signal.aborted + ' ' + errorDetails(err));
+    if (!signal?.aborted) console.error('chat failed durationMs=' + (Date.now() - startedAt) + ' timedOut=' + ctrl.signal.aborted + ' ' + errorDetails(err));
     if (signal?.aborted) throw new LlmError(499, 'chat request was cancelled', { cause: err });
     if (err instanceof LlmError) throw err;
     if (ctrl.signal.aborted) throw new LlmError(504, 'the LLM call timed out after ' + Math.round(timeoutMs / 1000) + 's', { cause: err });
