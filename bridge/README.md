@@ -10,6 +10,13 @@ talking the same wire it talks to LiteLLM.
 ## Run it
 
 ```sh
+./start.sh
+```
+
+That starts the bridge and the containers together, and leaves the bridge alone on a second run.
+To run only the bridge:
+
+```sh
 node bridge/claude-bridge.js
 ```
 
@@ -50,4 +57,4 @@ It restarts after a crash and starts again at login. Logs go to
 - Every call runs with `--bare --restricted --tools ""`, so your instructions, hooks, skills and
   MCP servers are not loaded.
 - It never copies, prints or stores your Claude Code login. The command owns it.
-- It does not support tool calls, so the app's chat tab stays on LiteLLM.
+- Chat works through it as well. Lookups travel as one `LOOKUP:` line, which the bridge turns into an OpenAI tool call.
