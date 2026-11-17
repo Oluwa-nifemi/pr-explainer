@@ -84,6 +84,7 @@ export function Overview({ story }) {
         <${DiffPill} story=${story} />
         <span class="fact"><b>${pr.changedFiles}</b> files</span>
         <span class="fact"><b>${steps.length || "…"}</b> steps</span>
+        ${story.generation?.model ? html`<span class="fact model-fact" title="The model that wrote this story">${story.generation.model}</span>` : null}
       </div>
     </header>
 

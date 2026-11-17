@@ -38,6 +38,7 @@ async function call(method, path, body) {
 
 export const getSetup = () => call("GET", "/api/setup");
 export const saveSetup = (body) => call("POST", "/api/setup", body);
+export const testSetup = (body) => call("POST", "/api/setup/test", body);
 export const clearSetup = () => call("DELETE", "/api/setup");
 
 export const getChat = (key) => call("GET", prPath(key) + "/chat");

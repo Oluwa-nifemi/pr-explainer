@@ -1,10 +1,11 @@
 import { html } from "htm/preact";
 import { useState } from "preact/hooks";
-import { saveSetup, clearSetup } from "../lib/api.js";
+import { saveSetup, clearSetup, testSetup } from "../lib/api.js";
 import { setup, closeSettings } from "../lib/setup.js";
 import { cx } from "../lib/util.js";
 
 const TOKENS_URL = "https://github.com/settings/tokens";
+const PROVIDER_ORDER = ["litellm", "claude-code"];
 
 function State({ ok, error, transient, source, envName, okText }) {
   if (error) return html`<p class=${cx("sf-state", transient ? "waiting" : "bad")} role=${transient ? "status" : "alert"}>${error}${transient ? " Your credential is still configured." : ""}</p>`;
@@ -13,19 +14,53 @@ function State({ ok, error, transient, source, envName, okText }) {
   return null;
 }
 
+function Chip({ ok, error, transient }) {
+  if (error) return html`<span class=${cx("conn-chip", transient ? "waiting" : "bad")}>${transient ? "Unreachable" : "Problem"}</span>`;
+  if (ok) return html`<span class="conn-chip ok">Connected</span>`;
+  return html`<span class="conn-chip">Not set</span>`;
+}
+
+function detailOf(result) {
+  if (!result) return "";
+  if (result.error) return result.error;
+  if (result.provider === "claude-code") {
+    const bits = [];
+    if (result.version) bits.push("Claude Code " + result.version);
+    bits.push(result.models?.length ? result.models.length + " models" : "ready");
+    return bits.join(" · ");
+  }
+  return result.models?.length ? result.models.length + " models available" : "ready";
+}
+
 export function Setup({ status, modal, embedded }) {
+  const providers = status.providers || {};
+  const providerOfModel = (name) => PROVIDER_ORDER.find((id) => (providers[id]?.models || []).some((m) => m.id === name)) || "litellm";
   const [github, setGithub] = useState("");
   const [key, setKey] = useState("");
   const [base, setBase] = useState(status.litellm.baseUrl || "");
+  const [claudeBase, setClaudeBase] = useState(status.claudeCode?.baseUrl || "");
   const [storyModel, setStoryModel] = useState(status.storyModel);
+  const [lastLitellm, setLastLitellm] = useState(providerOfModel(status.storyModel) === "litellm" ? status.storyModel : "opus");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [tests, setTests] = useState({});
+  const [testing, setTesting] = useState(null);
   const gh = status.github;
   const ll = status.litellm;
+  const cc = status.claudeCode || {};
+  const provider = providerOfModel(storyModel);
+  const locked = status.storyModelSource === "env";
   const baseChanged = base.trim() && base.trim() !== ll.baseUrl;
+  const claudeBaseChanged = claudeBase.trim() !== (cc.baseUrl || "");
   const storyChanged = storyModel !== status.storyModel;
-  const dirty = github.trim() || key.trim() || baseChanged || storyChanged;
+  const dirty = github.trim() || key.trim() || baseChanged || claudeBaseChanged || storyChanged;
+
+  const pickProvider = (id) => {
+    if (provider === "litellm" && lastLitellm !== storyModel) setLastLitellm(storyModel);
+    if (id === "litellm") setStoryModel(lastLitellm);
+    else setStoryModel(providers[id]?.models?.[0]?.id || "claude");
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -33,6 +68,7 @@ export function Setup({ status, modal, embedded }) {
     if (github.trim() && gh.source !== "env") body.githubToken = github.trim();
     if (key.trim() && ll.source !== "env") body.litellmApiKey = key.trim();
     if (baseChanged) body.litellmBaseUrl = base.trim();
+    if (claudeBaseChanged && claudeBase.trim()) body.claudeBaseUrl = claudeBase.trim();
     if (storyChanged) body.storyModel = storyModel;
     setBusy(true);
     setProblem(null);
@@ -42,13 +78,30 @@ export function Setup({ status, modal, embedded }) {
       if (!next.github.error) setGithub("");
       if (!next.litellm.error) setKey("");
       setBase(next.litellm.baseUrl || base);
+      setClaudeBase(next.claudeCode?.baseUrl || claudeBase);
       setStoryModel(next.storyModel);
       setSaved(next.ready);
+      setTests({});
       setup.set({ status: next });
     } catch (err) {
       setProblem(err.message);
     }
     setBusy(false);
+  };
+
+  const test = async (id) => {
+    setTesting(id);
+    try {
+      const body =
+        id === "claude-code"
+          ? { provider: "claude-code", claudeBaseUrl: claudeBase.trim() }
+          : { provider: "litellm", litellmBaseUrl: base.trim(), litellmApiKey: key.trim() };
+      const result = await testSetup(body);
+      setTests((t) => ({ ...t, [id]: result }));
+    } catch (err) {
+      setTests((t) => ({ ...t, [id]: { ok: false, error: err.message } }));
+    }
+    setTesting(null);
   };
 
   const clear = async () => {
@@ -65,12 +118,30 @@ export function Setup({ status, modal, embedded }) {
     setBusy(false);
   };
 
+  const connection = (id) => {
+    const result = tests[id] || (id === "litellm" ? ll : cc);
+    const label = providers[id]?.label || id;
+    const envName = id === "litellm" ? "PR_EXPLAINER_LITELLM_API_KEY" : "PR_EXPLAINER_CLAUDE_BASE_URL";
+    const isEnv = id === "litellm" ? ll.source === "env" : cc.source === "env";
+    return html`<div class="conn-row">
+      <div class="conn-main">
+        <div class="conn-head">
+          <span class="conn-name">${label}</span>
+          <${Chip} ok=${result?.ok} error=${result?.error} transient=${result?.transient} />
+          ${testing === id ? html`<i class="spin"></i>` : null}
+        </div>
+        <p class="conn-detail">${detailOf(result) || (isEnv ? "Set by " + envName : "Not configured.")}</p>
+      </div>
+      <button type="button" class="btn ghost small" disabled=${testing === id} onClick=${() => test(id)}>Test</button>
+    </div>`;
+  };
+
   const form = html`<form class=${cx("setup", modal && "in-modal")} onSubmit=${submit}>
     <div class="setup-head">
       <h1>${modal ? "Settings" : "Set up PR Explainer"}</h1>
       ${modal ? html`<button type="button" class="icon-btn" aria-label="Close" onClick=${closeSettings}>×</button>` : null}
     </div>
-    <p class="setup-lede">${modal ? "Credentials the service uses." : "The service needs two credentials before it can read a PR and write gists."}</p>
+    <p class="setup-lede">${modal ? "Connections and what writes your stories." : "PR Explainer needs GitHub, and one provider that writes the stories."}</p>
 
     <label class="sf">
       <span class="sf-label">GitHub token</span>
@@ -79,28 +150,60 @@ export function Setup({ status, modal, embedded }) {
       <${State} ok=${gh.ok} error=${gh.error} transient=${gh.transient} source=${gh.source} envName="PR_EXPLAINER_GITHUB_TOKEN" okText=${"Working. Signed in as " + gh.login + "."} />
     </label>
 
-    <label class="sf">
-      <span class="sf-label">LiteLLM API key</span>
-      <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.source === "file" ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => setKey(e.currentTarget.value)} />
-      <span class="sf-help">The key for your LiteLLM gateway. It must be allowed to use the story model you pick below.</span>
-      <${State} ok=${ll.ok} error=${ll.error} transient=${ll.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + ll.models.length + " models available."} />
-    </label>
+    <div class="sf">
+      <span class="sf-label">What writes your stories</span>
+      <div class="model-row" role="radiogroup" aria-label="Story provider">
+        ${PROVIDER_ORDER.filter((id) => providers[id]).map(
+          (id) =>
+            html`<button type="button" role="radio" aria-checked=${provider === id} disabled=${locked} class=${cx("model-opt", provider === id && "on")} onClick=${() => pickProvider(id)}><b>${providers[id].label}</b></button>`
+        )}
+      </div>
+      <span class="sf-help">${provider === "claude-code" ? "Stories run on your Claude Code login. Chat stays on LiteLLM, because it uses tool calls." : "Stories run on your LiteLLM gateway."}</span>
+    </div>
 
-    <label class="sf">
-      <span class="sf-label">LiteLLM base URL</span>
-      <input type="text" spellcheck="false" value=${base} onInput=${(e) => setBase(e.currentTarget.value)} />
-      <span class="sf-help">Without <code>/v1</code>. The service calls <code>/chat/completions</code> and <code>/models</code> under it.</span>
-    </label>
+    ${provider === "litellm"
+      ? html`<label class="sf">
+          <span class="sf-label">LiteLLM API key</span>
+          <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.source === "file" ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => setKey(e.currentTarget.value)} />
+          <span class="sf-help">The key for your LiteLLM gateway. It must be allowed to use the story model you pick below.</span>
+          <${State} ok=${ll.ok} error=${tests.litellm ? undefined : ll.error} transient=${ll.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + ll.models.length + " models available."} />
+        </label>
+
+        <label class="sf">
+          <span class="sf-label">LiteLLM base URL</span>
+          <input type="text" spellcheck="false" value=${base} onInput=${(e) => setBase(e.currentTarget.value)} />
+          <span class="sf-help">Without <code>/v1</code>. The service calls <code>/chat/completions</code> and <code>/models</code> under it.</span>
+        </label>`
+      : html`<label class="sf">
+          <span class="sf-label">Claude Code bridge URL</span>
+          <input type="text" spellcheck="false" value=${claudeBase} onInput=${(e) => setClaudeBase(e.currentTarget.value)} />
+          <span class="sf-help">Where the bridge runs. Inside Docker use <code>http://host.docker.internal:5191</code>. Start it with <code>node bridge/claude-bridge.js</code> on the host.</span>
+          <${State} ok=${cc.ok} error=${tests["claude-code"] ? undefined : cc.error} transient=${cc.transient} source=${cc.source} envName="PR_EXPLAINER_CLAUDE_BASE_URL" okText=${cc.ok ? "Working. Claude Code " + (cc.version || "") + " is signed in" + (cc.account ? " as " + cc.account : "") + "." : undefined} />
+        </label>`}
 
     <div class="sf">
       <span class="sf-label">Story model</span>
       <div class="model-row" role="radiogroup" aria-label="Story model">
-        ${[["deepseek", "DeepSeek"], ["opus", "Opus"]].map(
-          ([id, label]) => html`<button type="button" role="radio" aria-checked=${storyModel === id} disabled=${status.storyModelSource === "env"} class=${cx("model-opt", storyModel === id && "on")} onClick=${() => setStoryModel(id)}><b>${label}</b></button>`
+        ${(providers[provider]?.models || []).map(
+          (m) =>
+            html`<button type="button" role="radio" aria-checked=${storyModel === m.id} disabled=${locked} class=${cx("model-opt", storyModel === m.id && "on")} onClick=${() => setStoryModel(m.id)}><b>${m.label}</b></button>`
         )}
       </div>
-      <span class="sf-help">The model that writes stories. Changing it marks saved stories as outdated. Regenerate them one at a time. Chat uses it as its default.</span>
-      ${status.storyModelSource === "env" ? html`<p class="sf-state ok">Set by the environment variable <code>PR_EXPLAINER_STORY_MODEL</code>. Change it there.</p>` : null}
+      <span class="sf-help">The model that writes stories. Saved stories keep the model they were written with, so changing this does not mark them outdated.</span>
+      ${locked ? html`<p class="sf-state ok">Set by the environment variable <code>PR_EXPLAINER_STORY_MODEL</code>. Change it there.</p>` : null}
+    </div>
+
+    <div class="sf">
+      <span class="sf-label">Connections</span>
+      <div class="conn-list">
+        <div class="conn-row">
+          <div class="conn-main">
+            <div class="conn-head"><span class="conn-name">GitHub</span><${Chip} ok=${gh.ok} error=${gh.error} transient=${gh.transient} /></div>
+            <p class="conn-detail">${gh.error || (gh.ok ? "Signed in as " + gh.login + "." : "No token yet.")}</p>
+          </div>
+        </div>
+        ${PROVIDER_ORDER.filter((id) => providers[id]).map(connection)}
+      </div>
     </div>
 
     ${problem ? html`<p class="sf-state bad" role="alert">${problem}</p>` : null}
@@ -114,7 +217,7 @@ export function Setup({ status, modal, embedded }) {
 
     <p class="setup-foot">
       Saved values go to <code>~/.config/pr-explainer/credentials.json</code> (or <code>$XDG_CONFIG_HOME/pr-explainer/</code>; <code>%APPDATA%\\pr-explainer\\</code> on Windows), readable only by you.
-      The environment variables <code>PR_EXPLAINER_GITHUB_TOKEN</code>, <code>PR_EXPLAINER_LITELLM_API_KEY</code> and <code>PR_EXPLAINER_LITELLM_BASE_URL</code> override the file. The service never shows saved values again.
+      The environment variables <code>PR_EXPLAINER_GITHUB_TOKEN</code>, <code>PR_EXPLAINER_LITELLM_API_KEY</code>, <code>PR_EXPLAINER_LITELLM_BASE_URL</code>, <code>PR_EXPLAINER_CLAUDE_BASE_URL</code> and <code>PR_EXPLAINER_STORY_MODEL</code> override the file. The service never shows saved values again.
     </p>
   </form>`;
 

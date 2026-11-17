@@ -56,8 +56,8 @@ export function ChatPanel({ story }) {
   const ctx = useSession((s) => s.ctx);
   const focus = useSession((s) => s.focusChat);
   const picked = useSession((s) => s.chatModel);
-  const storyModel = useSetup().status?.storyModel;
-  const chatModel = picked || storyModel || "deepseek";
+  const status = useSetup().status;
+  const chatModel = picked || status?.chatModel || status?.storyModel || "deepseek";
   const text = useSession((s) => s.chatInput);
   const setText = (v) => session.set({ chatInput: v });
   const list = useRef(null);

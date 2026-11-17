@@ -678,6 +678,17 @@ button.frow:hover { background: rgba(60, 50, 30, 0.07); }
 .sf-state.ok { background: var(--add-bg); color: #1f5b37; }
 .sf-state.bad { background: var(--del-bg); color: #8a2c20; }
 .sf-state.waiting { background: var(--warn-bg); color: var(--warn); }
+.conn-list { border: 1px solid var(--line); border-radius: 10px; background: var(--card); overflow: hidden; margin-top: 8px; }
+.conn-row { display: flex; align-items: center; gap: 12px; padding: 11px 13px; border-bottom: 1px solid var(--line-2); }
+.conn-row:last-child { border-bottom: 0; }
+.conn-main { flex: 1; min-width: 0; }
+.conn-head { display: flex; align-items: center; gap: 8px; }
+.conn-name { font-weight: 600; font-size: 13.5px; }
+.conn-detail { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.conn-chip { font-size: 10.5px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: rgba(60, 50, 30, 0.08); color: var(--muted); }
+.conn-chip.ok { background: var(--add-bg); color: var(--add); }
+.conn-chip.bad { background: var(--del-bg); color: var(--del); }
+.conn-chip.waiting { background: var(--warn-bg); color: var(--warn); }
 .connection-notice { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 18px; padding: 10px 24px; background: var(--warn-bg); color: var(--warn); border-bottom: 1px solid var(--line); font-size: 13.5px; }
 .connection-notice .btn { flex: none; }
 .setup-actions { display: flex; align-items: center; gap: 8px; }
