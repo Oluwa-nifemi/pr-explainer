@@ -19,6 +19,9 @@ services:
       PR_EXPLAINER_FAST_MODEL: ${PR_EXPLAINER_FAST_MODEL:-}
       PR_EXPLAINER_STRONG_MODEL: ${PR_EXPLAINER_STRONG_MODEL:-}
       PR_EXPLAINER_STRONG_MODEL_BODY: ${PR_EXPLAINER_STRONG_MODEL_BODY:-}
+      PR_EXPLAINER_STORY_MODEL: ${PR_EXPLAINER_STORY_MODEL:-}
+      PR_EXPLAINER_CLAUDE_BASE_URL: ${PR_EXPLAINER_CLAUDE_BASE_URL:-}
+      PRX_MAX_CONCURRENCY: ${PRX_MAX_CONCURRENCY:-}
       PRX_ORG: ${PRX_ORG:-}
       PRX_TEAMS: ${PRX_TEAMS:-}
       PRX_EXTRA_TEAMMATES: ${PRX_EXTRA_TEAMMATES:-}
@@ -28,6 +31,8 @@ services:
       - credentials:/home/node/.config/pr-explainer
       - cache:/home/node/.cache/pr-explainer
       - ./logs:/var/log/pr-explainer
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   ui:
     build: .

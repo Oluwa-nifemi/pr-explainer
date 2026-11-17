@@ -72,6 +72,14 @@ Search for **Explain PR**, paste a GitHub PR URL into the argument field, and pr
 
 **LiteLLM gateway.** The service calls `/chat/completions` on your gateway. Only LiteLLM is tested.
 
+**Claude Code instead.** You can write stories with a Claude Code login instead of a gateway. Run the bridge on your machine, then pick Claude Code in Settings → Connections or on the setup screen:
+
+```sh
+node bridge/claude-bridge.js
+```
+
+Inside Docker the bridge is reachable at `http://host.docker.internal:5191`, which is the default. The bridge runs on your machine because the login belongs to the `claude` command and cannot be copied into a container. Chat still uses LiteLLM, because it needs tool calls. See [bridge/README.md](bridge/README.md) to keep the bridge running at login.
+
 <details>
 <summary>Run without Docker</summary>
 
@@ -103,6 +111,7 @@ A comment you write in an export stays in that file's local storage, so it survi
 - Drafts you keep until you post everything as one review
 - Chat grounded in the repo, which can also read the PR description and your drafts when you ask
 - Stories marked Outdated when prompts change, and Regenerate on request
+- The model that wrote a story is shown on the overview. Changing the model does not mark saved stories outdated
 - Retry for one failed step
 - Editable prompts and file rules
 - Export one PR as a single HTML file you can send to someone
