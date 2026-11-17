@@ -50,12 +50,12 @@ npm run watch-preview
 | `PRX_HOME` | `~/.cache/pr-explainer` | Cache root for stories, threads and `queue.json` |
 | `PRX_MAX_STORIES` | `2` | Stories generated at once |
 | `PRX_ORG` | none | Limit the watcher search to one GitHub org |
-| `PRX_TEAMS` | none | Teams (in `PRX_ORG`) whose members count as teammates |
+| `PRX_TEAMS` | none | Default teams (in `PRX_ORG`) whose members count as teammates. A saved value on the Features settings page wins, and with neither set the teams you are on are used |
 | `PRX_EXTRA_TEAMMATES` | none | Extra logins treated as teammates. With teams or extra teammates set, the watcher only queues their PRs |
 | `PRX_EXCLUDED_TEAMMATES` | none | Logins removed from the teammate list |
-| `PRX_IGNORED_REPOS` | none | Repos (`owner/name`) the watcher never queues |
+| `PRX_IGNORED_REPOS` | none | Default repos (`owner/name`) the watcher never queues. A saved value on the Features settings page wins |
 | `PRX_WATCH` | on | Default for the review-request watcher. A saved `watch.enabled` in the overrides file wins over it |
-| `PRX_WATCH_INTERVAL_S` | `180` | Watcher period |
+| `PRX_WATCH_INTERVAL_S` | `180` | Default watcher period. A saved interval on the Features settings page wins |
 | `PRX_WATCH_ONCE_DRYRUN` | off | `1` runs one watcher pass, prints what it would queue, then stops |
 | `PRX_FAKE_GENERATOR` | off | `1` replays a story from `pipeline/out-v2` instead of calling the pipeline |
 | `PRX_FAKE_STORY` | | Explicit story JSON for the fake generator |

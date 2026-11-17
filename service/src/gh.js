@@ -77,6 +77,14 @@ export async function graphql(query, variables) {
 const metaCache = new Map();
 const META_TTL_MS = 15000;
 
+export async function searchRepos(term, org) {
+  const q = 'in:name ' + term + (org ? ' org:' + org : '');
+  const data = await rest('GET', '/search/repositories?per_page=20&q=' + encodeURIComponent(q));
+  return (Array.isArray(data?.items) ? data.items : [])
+    .filter((item) => typeof item?.full_name === 'string')
+    .map((item) => ({ repo: item.full_name, description: item.description || '', private: Boolean(item.private) }));
+}
+
 export async function prMeta(repo, number) {
   const k = repo + '#' + number;
   const hit = metaCache.get(k);

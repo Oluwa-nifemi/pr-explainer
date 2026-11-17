@@ -11,7 +11,7 @@ import * as jobs from './jobs.js';
 import * as threads from './threads.js';
 import * as sse from './sse.js';
 import { postReview, validateReview, replyToThread, setThreadResolved, setReaction } from './reviews.js';
-import { startWatcher, stopWatcher, syncWatcher, watcherEnabled, watcherRunning } from './watcher.js';
+import { detectTeams, effectiveWatchTeams, startWatcher, stopWatcher, syncWatcher, watchIgnoredRepos, watchIntervalS, watcherEnabled, watcherRunning } from './watcher.js';
 import { ApiError } from './errors.js';
 import * as chat from './chat.js';
 import { readPrFile } from './files.js';
@@ -67,7 +67,8 @@ function sendError(res, err) {
   sendJson(res, 500, { error: { code: 'internal_error', message: err?.message || 'internal error' } });
 }
 
-function settingsPayload() {
+async function settingsPayload() {
+  const teams = await detectTeams();
   return {
     ...describeSettings(),
     watch: {
@@ -75,7 +76,16 @@ function settingsPayload() {
       running: watcherRunning(),
       envDefault: config.watch,
       dryRun: config.watchDryRun,
-      intervalS: config.watchIntervalS,
+      intervalMinutes: Math.round(watchIntervalS() / 60),
+      intervalMinutesDefault: Math.round(config.watchIntervalS / 60),
+      teams: {
+        value: effectiveWatchTeams(),
+        detected: teams.teams,
+        detectedAt: new Date(teams.fetchedAt).toISOString(),
+        detectionError: teams.error,
+        env: config.teams,
+      },
+      ignoredRepos: { value: watchIgnoredRepos(), env: config.ignoredRepos },
     },
     info: PIPELINE_INFO,
     model: MODELS[getStoryModel()].label,
@@ -320,7 +330,7 @@ async function route(req, res) {
   }
 
   if (path === '/api/settings' && req.method === 'GET') {
-    sendJson(res, 200, settingsPayload());
+    sendJson(res, 200, await settingsPayload());
     return;
   }
 
@@ -334,7 +344,17 @@ async function route(req, res) {
     }
     syncWatcher();
     await jobs.refreshOutdated();
-    sendJson(res, 200, settingsPayload());
+    sendJson(res, 200, await settingsPayload());
+    return;
+  }
+
+  if (path === '/api/repos' && req.method === 'GET') {
+    const term = String(url.searchParams.get('q') || '').trim();
+    if (term.length < 2) {
+      sendJson(res, 200, []);
+      return;
+    }
+    sendJson(res, 200, await gh.searchRepos(term, config.org));
     return;
   }
 
@@ -517,7 +537,7 @@ server.listen(config.port, config.host, () => {
       ', dry-run ' +
       (config.dryRun ? 'on' : 'off') +
       ', watch ' +
-      (watcherEnabled() ? config.watchIntervalS + 's' : 'off') +
+      (watcherEnabled() ? watchIntervalS() + 's' : 'off') +
       ')',
   );
 });
