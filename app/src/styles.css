@@ -384,12 +384,16 @@ a.btn { color: var(--ink); text-decoration: none; }
 .ccard { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px 10px; font-size: 14px; border-left: 3px solid #b8ac8f; }
 .ccard.ask { border-left-color: var(--accent); }
 .ccard-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-bottom: 4px; }
+.ccard-head .icon-btn { width: 22px; height: 22px; font-size: 15px; margin-left: 0; }
+.ccard-head .icon-btn:first-of-type { margin-left: auto; }
 .avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: #f3efe5; font-size: 9.5px; display: grid; place-items: center; font-weight: 600; }
 img.avatar { object-fit: cover; background: var(--paper-2); }
 .ccard-kind { font-weight: 600; color: var(--ink-2); }
 .badge { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; font-weight: 600; letter-spacing: 0.03em; }
 .badge-draft { background: var(--warn-bg); color: var(--warn); } .badge-posted { background: var(--add-bg); color: #1f5b37; }
 .ccard-body { white-space: pre-wrap; line-height: 1.5; }
+.ccard-edit textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13.5px; padding: 7px 9px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff; resize: vertical; line-height: 1.5; }
+.ccard-edit textarea:focus { outline: 2px solid var(--accent-2); outline-offset: 0; border-color: transparent; }
 .ccard-loc { font-family: var(--mono); font-size: 11.5px; margin-top: 5px; display: block; }
 
 /* ---------- aside tabs ---------- */

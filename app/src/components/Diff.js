@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { parsePatch, langOf, hunkStats } from "../lib/diff.js";
 import { highlightLines } from "../lib/highlight.js";
-import { session, useSession, lineKey, openComposer, closeComposer, addComment, removeComment, saveReply, removeReply, askAbout, live, setHunksViewed, loadFile, expandGap } from "../lib/session.js";
+import { session, useSession, lineKey, openComposer, closeComposer, addComment, removeComment, updateComment, saveReply, removeReply, askAbout, live, setHunksViewed, loadFile, expandGap } from "../lib/session.js";
 import { cx, dirName, fileName, isRange, memo, rangeLabel } from "../lib/util.js";
 import { getThreads, replyThread, setResolved, setReaction } from "../lib/api.js";
 import { useSetup } from "../lib/setup.js";
@@ -96,6 +96,22 @@ const REACT = { THUMBS_UP: "👍", THUMBS_DOWN: "👎", LAUGH: "😄", HOORAY: "
 export function CommentCard({ c, onJump, compact, href }) {
   const author = live.story?.pr.author;
   const me = useSetup().status?.github;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.body);
+  const editRef = useRef(null);
+  useEffect(() => {
+    if (editing) editRef.current?.focus();
+  }, [editing]);
+  const startEdit = () => {
+    setDraft(c.body);
+    setEditing(true);
+  };
+  const saveEdit = () => {
+    const body = draft.trim();
+    if (!body) return;
+    updateComment(c.id, body);
+    setEditing(false);
+  };
   return html`<div class=${cx("ccard", c.kind === "clarification" && "ask", c.posted && "posted")}>
     <div class="ccard-head">
       ${me?.avatarUrl ? html`<img class="avatar" src=${me.avatarUrl} alt=${me.login || "You"} title=${me.login || "You"} />` : html`<span class="avatar">You</span>`}
@@ -103,9 +119,28 @@ export function CommentCard({ c, onJump, compact, href }) {
       ${isRange(c) ? html`<span class="muted ccard-range">${fileName(c.path)} ${rangeLabel(c)}</span>` : null}
       <span class=${cx("badge", c.posted ? "badge-posted" : "badge-draft")}>${c.posted ? (live.prKey ? "Posted" : "Posted (demo)") : "Draft"}</span>
       ${compact ? null : null}
+      ${c.posted || editing ? null : html`<button class="icon-btn" title="Edit draft" aria-label="Edit draft" onClick=${startEdit}>✎</button>`}
       ${c.posted ? null : html`<button class="icon-btn" title="Delete draft" aria-label="Delete draft" onClick=${() => removeComment(c.id)}>×</button>`}
     </div>
-    <div class="ccard-body">${c.body}</div>
+    ${editing
+      ? html`<div class="ccard-edit">
+          <textarea
+            ref=${editRef}
+            rows="3"
+            value=${draft}
+            onInput=${(e) => setDraft(e.currentTarget.value)}
+            onKeyDown=${(e) => {
+              if (e.key === "Escape") setEditing(false);
+              else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit();
+            }}
+          />
+          <div class="composer-row">
+            <span class="composer-meta">Editing this draft comment</span>
+            <button class="btn ghost small" onClick=${() => setEditing(false)}>Cancel</button>
+            <button class="btn primary small" disabled=${!draft.trim()} onClick=${saveEdit}>Save <kbd>⌘↵</kbd></button>
+          </div>
+        </div>`
+      : html`<div class="ccard-body">${c.body}</div>`}
     ${onJump ? html`<button class="link ccard-loc" onClick=${onJump}>${fileName(c.path)}${c.scope === "step" ? "" : isRange(c) ? " " + rangeLabel(c) : ":" + c.line}</button>` : null}
     ${href ? html`<a class="link ccard-loc" href=${href} target="_blank" rel="noreferrer">Open this file on GitHub ↗</a>` : null}
   </div>`;

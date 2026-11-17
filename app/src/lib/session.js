@@ -372,6 +372,10 @@ export function addComment(c) {
   return comment;
 }
 
+export function updateComment(id, body) {
+  session.set((s) => ({ comments: s.comments.map((c) => (c.id === id ? { ...c, body, editedAt: Date.now() } : c)) }));
+}
+
 export function removeComment(id) {
   session.set((s) => ({ comments: s.comments.filter((c) => c.id !== id) }));
 }
