@@ -205,8 +205,27 @@ export function sanitize(raw) {
   if (Number.isInteger(max) && max > 0 && max !== DEFAULT_MAX_FILE_LINES) files.limits = { maxFileChangedLines: max };
   if (Object.keys(files).length) out.files = files;
 
-  const watch = raw.watch?.enabled;
-  if (typeof watch === 'boolean') out.watch = { enabled: watch };
+  const watch = sanitizeWatch(raw.watch);
+  if (Object.keys(watch).length) out.watch = watch;
+  return out;
+}
+
+const REPO_SHAPE = /^[^/\s]+\/[^/\s]+$/;
+
+function sanitizeWatch(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  if (typeof raw.enabled === 'boolean') out.enabled = raw.enabled;
+  const minutes = Number(raw.intervalMinutes);
+  if (Number.isFinite(minutes) && minutes >= 1) out.intervalMinutes = Math.round(minutes);
+  if (Array.isArray(raw.teams)) {
+    const teams = raw.teams.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
+    out.teams = [...new Set(teams)];
+  }
+  if (Array.isArray(raw.ignoredRepos)) {
+    const repos = raw.ignoredRepos.filter((r) => typeof r === 'string' && REPO_SHAPE.test(r.trim())).map((r) => r.trim());
+    out.ignoredRepos = [...new Set(repos)];
+  }
   return out;
 }
 
@@ -341,7 +360,12 @@ export function describeSettings() {
       hideable: HIDEABLE_ROLES,
       limits: { maxFileChangedLines: { default: DEFAULT_MAX_FILE_LINES, value: overrides.files?.limits?.maxFileChangedLines ?? null } },
     },
-    watch: { enabled: overrides.watch?.enabled ?? null },
+    watch: {
+      enabled: overrides.watch?.enabled ?? null,
+      intervalMinutes: overrides.watch?.intervalMinutes ?? null,
+      teams: overrides.watch?.teams ?? null,
+      ignoredRepos: overrides.watch?.ignoredRepos ?? null,
+    },
     overrides,
   };
 }
