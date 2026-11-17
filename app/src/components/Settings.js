@@ -66,6 +66,7 @@ function tidy(draft, data) {
   const max = Number(draft.files?.limits?.maxFileChangedLines);
   if (Number.isInteger(max) && max > 0 && max !== data.files.limits.maxFileChangedLines.default) files.limits = { maxFileChangedLines: max };
   if (Object.keys(files).length) out.files = files;
+  if (typeof draft.watch?.enabled === "boolean") out.watch = { enabled: draft.watch.enabled };
   return out;
 }
 
@@ -86,8 +87,16 @@ function Node({ x, y, w, h = 64, title, sub, kind, stack, to, setTab }) {
   </g>`;
 }
 
-function PipelineTab({ data, setTab }) {
+function PipelineTab({ data, draft, update, setTab }) {
   const { checks } = data.info;
+  const watchOn = Boolean(draft.watch?.enabled ?? data.watch.envDefault);
+  const watchNote = data.watch.dryRun
+    ? "This service runs in dry-run mode. It lists what it would build and builds nothing."
+    : watchOn
+    ? data.watch.running
+      ? "On. It checks GitHub every " + data.watch.intervalS + " seconds."
+      : "On. It starts as soon as you save."
+    : "Off. A story is built only when you open the pull request.";
   const A = (d, label, lx, ly) => html`<g><path class="pn-arrow" d=${d} marker-end="url(#pn-head)" />${label ? html`<text class="pn-l" x=${lx} y=${ly} text-anchor="middle">${label}</text>` : null}</g>`;
   return html`<div class="sp-pane">
     <div class="pn-legend">
@@ -125,6 +134,15 @@ function PipelineTab({ data, setTab }) {
     <section class="sp-card">
       <h3>Checks that always run</h3>
       <ul class="pn-checks">${checks.map((c) => html`<li key=${c.title} tabindex="0">${c.title}<div class="pn-tip" role="tooltip"><b>${c.title}</b><ul>${c.rules.map((r) => html`<li key=${r}>${r}</li>`)}</ul></div></li>`)}</ul>
+    </section>
+    <section class="sp-card">
+      <h3>Stories made before you arrive</h3>
+      <p class="sp-help">The service can watch GitHub for pull requests that ask for your review and build their stories in the background. Leave it off and a story is built only when you open the pull request, which makes you wait for it.</p>
+      <div class="sp-opt">
+        <span>Build stories before I open them</span>
+        <${Switch} on=${watchOn} label="Build stories before I open them" onChange=${(on) => update((d) => ({ ...d, watch: { enabled: on } }))} />
+      </div>
+      <p class="sp-hint">${watchNote} Changing this does not make saved stories outdated.</p>
     </section>
   </div>`;
 }
@@ -383,7 +401,7 @@ export function SettingsPage({ tab, go }) {
       ${error && current !== "diagnostics" ? html`<div class="notice"><b>Could not load the settings.</b> ${error}</div>` : null}
       ${!data && !error && current !== "diagnostics" ? html`<div class="boot"><i class="spin"></i></div>` : null}
       ${current === "diagnostics" ? html`<${DiagnosticsTab} />` : null}
-      ${data && current === "pipeline" ? html`<${PipelineTab} data=${data} setTab=${setTab} />` : null}
+      ${data && current === "pipeline" ? html`<${PipelineTab} data=${data} draft=${draft} update=${update} setTab=${setTab} />` : null}
       ${data && current === "prompts" ? html`<${PromptsTab} data=${data} draft=${draft} update=${update} />` : null}
       ${data && current === "files" ? html`<${FilesTab} data=${data} draft=${draft} update=${update} />` : null}
       ${current === "connections" && status ? html`<div class="sp-pane sp-conn"><${Setup} status=${status} embedded=${true} /></div>` : null}
@@ -394,8 +412,8 @@ export function SettingsPage({ tab, go }) {
           ${problem
             ? html`<span class="sp-bad">${problem}</span>`
             : saved && !dirty
-            ? html`<span>Saved. Stories made before now show as Outdated until you regenerate them.</span>`
-            : html`<span>You have unsaved changes. Saving marks existing stories as outdated.</span>`}
+            ? html`<span>Saved. Prompt and file changes make earlier stories Outdated until you regenerate them.</span>`
+            : html`<span>You have unsaved changes. Prompt and file changes make earlier stories Outdated.</span>`}
           ${dirty ? html`<button class="btn ghost small" onClick=${() => (setDraft(clone(data.overrides)), setProblem(null))} disabled=${saving}>Discard</button>` : null}
           ${dirty ? html`<button class="btn primary small" onClick=${save} disabled=${saving}>${saving ? "Saving…" : "Save"}</button>` : null}
         </div>`

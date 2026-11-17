@@ -119,7 +119,7 @@ Put these in `.env`. Docker Compose reads the file by itself.
 | `PR_EXPLAINER_FAST_MODEL` | Model id for the fast profile. Default `deepseek-chat` |
 | `PR_EXPLAINER_STRONG_MODEL` | Model id for the strong profile. Default `claude-opus-4-5` |
 | `PR_EXPLAINER_STRONG_MODEL_BODY` | Optional JSON merged into every request to the strong model, for example routing tags |
-| `PRX_WATCH` | `1` queues PRs where your review is requested. Off by default |
+| `PRX_WATCH` | Default for the background watcher. The Settings page switch overrides it. Docker turns it off unless you set this |
 | `PRX_ORG`, `PRX_TEAMS` | Limit the watcher to one org and its teams |
 | `PRX_EXTRA_TEAMMATES`, `PRX_EXCLUDED_TEAMMATES` | Add or remove logins in the teammate list. When set, the watcher only queues their PRs |
 | `PRX_IGNORED_REPOS` | Repos the watcher never queues |

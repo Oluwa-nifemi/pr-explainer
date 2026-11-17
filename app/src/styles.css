@@ -781,6 +781,7 @@ button.frow:hover { background: rgba(60, 50, 30, 0.07); }
 .sp-count { margin-left: auto; font-size: 12.5px; color: var(--muted); }
 .sp-group .sp-help { margin-left: 24px; }
 .sp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0 24px; font-size: 14px; }
+.sp-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 0; font-size: 14px; }
 .sp-rules { margin: 12px 0 0 24px; display: grid; gap: 7px; }
 .sp-rule { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .sp-rule code { font-size: 12.5px; overflow-wrap: anywhere; background: var(--paper-2); }
