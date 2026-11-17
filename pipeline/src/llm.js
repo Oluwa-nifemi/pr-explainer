@@ -26,12 +26,13 @@ export function claudeSettings() {
 }
 
 // Story calls follow the profile's provider. Chat always stays on LiteLLM, because it uses tool calls.
-export function storySettings() {
-  return providerOf(getStoryModel()) === 'claude-code' ? claudeSettings() : llmSettings();
+// The model is an argument, not the global setting: a generation keeps the provider it started on.
+export function storySettings(model = getStoryModel()) {
+  return providerOf(model) === 'claude-code' ? claudeSettings() : llmSettings();
 }
 
-export function chatUrl() {
-  return storySettings().baseUrl + '/chat/completions';
+export function chatUrl(model = getStoryModel()) {
+  return storySettings(model).baseUrl + '/chat/completions';
 }
 
 export function rank(priority = 'background', order = 0) {
@@ -164,8 +165,8 @@ export async function chat({
   const toolCalls = [];
   let lastTokenAt = null;
   try {
-    const { apiKey } = storySettings();
-    const res = await fetch(chatUrl(), {
+    const { apiKey } = storySettings(model);
+    const res = await fetch(chatUrl(model), {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(apiKey ? { authorization: 'Bearer ' + apiKey } : {}) },
       body: JSON.stringify(body),

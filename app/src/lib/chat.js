@@ -56,7 +56,7 @@ export function sendChat(text) {
   const quoted = chip && (chip.type === "quote" || chip.type === "question") && chip.snippet;
   const message = quoted ? "About: “" + clip(chip.snippet) + "”\n\n" + typed : typed;
   session.set({ ctx: [] });
-  run({ message, model: s.chatModel || setup.get().status?.storyModel || "deepseek", context: contextOf(chip), drafts: collectDrafts() }, false);
+  run({ message, model: s.chatModel || setup.get().status?.chatModel || "deepseek", context: contextOf(chip), drafts: collectDrafts() }, false);
 }
 
 export function retryChat() {

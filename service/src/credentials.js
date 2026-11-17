@@ -161,7 +161,9 @@ export async function checkClaudeCode(baseUrl) {
   const models = (Array.isArray(data.models) ? data.models : []).map((m) => (typeof m === 'string' ? m : m?.id)).filter((id) => typeof id === 'string');
   const claude = data.claude || {};
   if (!claude.installed) return { ok: false, models, error: claude.error || 'the claude command is not installed on the host' };
-  if (!claude.authorized) return { ok: false, models, version: claude.version, error: 'Claude Code is installed but not signed in. Run claude auth login on the host.' };
+  if (!claude.authorized) {
+    return { ok: false, models, version: claude.version, error: claude.error || 'Claude Code is installed but not signed in. Run claude auth login on the host.' };
+  }
   return { ok: true, models, version: claude.version, account: claude.account };
 }
 
@@ -341,9 +343,9 @@ export async function save(input = {}) {
   if (saved) await writeFileCredentials(next);
   clearStatus();
   const out = structuredClone(await status({ fresh: true }));
-  if (errors.github) out.github.error = errors.github;
-  if (errors.litellm) out.litellm.error = errors.litellm;
-  if (errors.claudeCode) out.claudeCode.error = errors.claudeCode;
+  // Rejected values are reported here, not inside the status. The status describes what is saved,
+  // so an error never lingers against a field the person has already corrected.
+  if (Object.keys(errors).length) out.errors = errors;
   return out;
 }
 

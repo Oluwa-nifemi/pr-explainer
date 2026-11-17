@@ -23,7 +23,7 @@ Then in the app: Settings → Connections → pick Claude Code. Inside Docker th
 Write the plist with your own paths, then load it:
 
 ```sh
-sed -e "s#__NODE__#$(which node)#" -e "s#__REPO__#$PWD#" \
+sed -e "s#__NODE__#$(which node)#" -e "s#__REPO__#$PWD#" -e "s#__HOME__#$HOME#g" \
   bridge/com.nifemi.pr-explainer-claude-bridge.plist \
   > ~/Library/LaunchAgents/com.nifemi.pr-explainer-claude-bridge.plist
 launchctl load ~/Library/LaunchAgents/com.nifemi.pr-explainer-claude-bridge.plist

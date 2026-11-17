@@ -167,20 +167,27 @@ async function complete(req, res, body) {
   const schema = body?.response_format?.json_schema?.schema || null;
   if (!prompt.trim()) return send(res, 400, { error: { message: 'no messages in the request' } });
 
-  await slot();
+  let aborted = false;
   let finished = false;
-  const id = 'chatcmpl-' + Math.random().toString(16).slice(2, 14);
-  const startedAt = Date.now();
-  const child = spawn(process.env.BRIDGE_CLAUDE_BIN || 'claude', claudeArgs({ model, schema, system }), {
-    cwd: tmpdir(),
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  let child = null;
   const done = () => {
     if (finished) return;
     finished = true;
     clearTimeout(timer);
     release();
   };
+
+  await slot();
+  if (aborted) {
+    release();
+    return;
+  }
+  const id = 'chatcmpl-' + Math.random().toString(16).slice(2, 14);
+  const startedAt = Date.now();
+  child = spawn(process.env.BRIDGE_CLAUDE_BIN || 'claude', claudeArgs({ model, schema, system }), {
+    cwd: tmpdir(),
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
   const timer = setTimeout(() => {
     child.kill('SIGKILL');
     done();
@@ -254,18 +261,20 @@ async function complete(req, res, body) {
   child.on('error', (err) => (failure = err.message));
   child.on('close', (code) => {
     if (finished) return;
-    if (code !== 0 && !content) {
+    const message = failure || (code !== 0 && !content ? stderr.trim() || 'claude exited with code ' + code : '');
+    if (message) {
       done();
-      const message = (stderr.trim() || failure || 'claude exited with code ' + code).slice(0, 800);
-      log(model, startedAt, 0, 0, 'failed: ' + message);
-      return send(res, 502, { error: { message } });
+      log(model, startedAt, 0, 0, 'failed: ' + message.slice(0, 200));
+      if (!res.headersSent) return send(res, 502, { error: { message: message.slice(0, 800) } });
+      res.write('data: ' + JSON.stringify({ error: { message } }) + '\n\n');
+      res.end();
+      return;
     }
     if (models === null) {
       models = model;
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write('data: ' + JSON.stringify(chunkOf(id, models, { role: 'assistant', content: '' })) + '\n\n');
     }
-    if (failure && !content) res.write('data: ' + JSON.stringify({ error: { message: failure } }) + '\n\n');
     res.write('data: ' + JSON.stringify(chunkOf(id, models, {}, 'stop')) + '\n\n');
     if (usage) res.write('data: ' + JSON.stringify({ id, object: 'chat.completion.chunk', model: models, choices: [], usage }) + '\n\n');
     res.write('data: [DONE]\n\n');
@@ -274,12 +283,15 @@ async function complete(req, res, body) {
     log(model, startedAt, usage?.prompt_tokens || 0, usage?.completion_tokens || 0, 'ok');
   });
 
-  req.on('close', () => {
+  res.on('close', () => {
+    aborted = true;
     if (!finished) {
       child.kill('SIGKILL');
       done();
+      log(model, startedAt, 0, 0, 'cancelled');
     }
   });
+
 
   child.stdin.on('error', () => {});
   child.stdin.end(prompt);

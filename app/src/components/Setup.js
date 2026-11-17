@@ -20,10 +20,10 @@ function Chip({ ok, error, transient }) {
   return html`<span class="conn-chip">Not set</span>`;
 }
 
-function detailOf(result) {
+function detailOf(result, id) {
   if (!result) return "";
   if (result.error) return result.error;
-  if (result.provider === "claude-code") {
+  if (id === "claude-code") {
     const bits = [];
     if (result.version) bits.push("Claude Code " + result.version);
     bits.push(result.models?.length ? result.models.length + " models" : "ready");
@@ -49,6 +49,9 @@ export function Setup({ status, modal, embedded }) {
   const gh = status.github;
   const ll = status.litellm;
   const cc = status.claudeCode || {};
+  // A fresh test result describes the values on screen, so it wins over the saved status.
+  const llView = tests.litellm || ll;
+  const ccView = tests["claude-code"] || cc;
   const provider = providerOfModel(storyModel);
   const locked = status.storyModelSource === "env";
   const baseChanged = base.trim() && base.trim() !== ll.baseUrl;
@@ -57,10 +60,14 @@ export function Setup({ status, modal, embedded }) {
   const dirty = github.trim() || key.trim() || baseChanged || claudeBaseChanged || storyChanged;
 
   const pickProvider = (id) => {
+    if (provider === id) return;
     if (provider === "litellm" && lastLitellm !== storyModel) setLastLitellm(storyModel);
     if (id === "litellm") setStoryModel(lastLitellm);
     else setStoryModel(providers[id]?.models?.[0]?.id || "claude");
   };
+
+  // A test result describes the values it tested. Drop it when they change.
+  const dropTest = (id) => setTests((t) => (t[id] ? Object.fromEntries(Object.entries(t).filter(([k]) => k !== id)) : t));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -75,12 +82,15 @@ export function Setup({ status, modal, embedded }) {
     setSaved(false);
     try {
       const next = await saveSetup(body);
-      if (!next.github.error) setGithub("");
-      if (!next.litellm.error) setKey("");
-      setBase(next.litellm.baseUrl || base);
-      setClaudeBase(next.claudeCode?.baseUrl || claudeBase);
+      const errors = next.errors || {};
+      const failed = errors.github || errors.litellm || errors.claudeCode;
+      if (body.githubToken && !errors.github) setGithub("");
+      if (body.litellmApiKey && !errors.litellm) setKey("");
+      if (body.litellmBaseUrl && !errors.litellm) setBase(next.litellm.baseUrl || base);
+      if (body.claudeBaseUrl && !errors.claudeCode) setClaudeBase(next.claudeCode.baseUrl || claudeBase);
       setStoryModel(next.storyModel);
-      setSaved(next.ready);
+      setSaved(next.ready && !failed);
+      setProblem(failed || null);
       setTests({});
       setup.set({ status: next });
     } catch (err) {
@@ -119,7 +129,7 @@ export function Setup({ status, modal, embedded }) {
   };
 
   const connection = (id) => {
-    const result = tests[id] || (id === "litellm" ? ll : cc);
+    const result = id === "litellm" ? llView : ccView;
     const label = providers[id]?.label || id;
     const envName = id === "litellm" ? "PR_EXPLAINER_LITELLM_API_KEY" : "PR_EXPLAINER_CLAUDE_BASE_URL";
     const isEnv = id === "litellm" ? ll.source === "env" : cc.source === "env";
@@ -130,7 +140,7 @@ export function Setup({ status, modal, embedded }) {
           <${Chip} ok=${result?.ok} error=${result?.error} transient=${result?.transient} />
           ${testing === id ? html`<i class="spin"></i>` : null}
         </div>
-        <p class="conn-detail">${detailOf(result) || (isEnv ? "Set by " + envName : "Not configured.")}</p>
+        <p class="conn-detail">${detailOf(result, id) || (isEnv ? "Set by " + envName : "Not configured.")}</p>
       </div>
       <button type="button" class="btn ghost small" disabled=${testing === id} onClick=${() => test(id)}>Test</button>
     </div>`;
@@ -164,21 +174,34 @@ export function Setup({ status, modal, embedded }) {
     ${provider === "litellm"
       ? html`<label class="sf">
           <span class="sf-label">LiteLLM API key</span>
-          <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.source === "file" ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => setKey(e.currentTarget.value)} />
+          <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.source === "file" ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => { setKey(e.currentTarget.value); dropTest("litellm"); }} />
           <span class="sf-help">The key for your LiteLLM gateway. It must be allowed to use the story model you pick below.</span>
-          <${State} ok=${ll.ok} error=${tests.litellm ? undefined : ll.error} transient=${ll.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + ll.models.length + " models available."} />
+          <${State} ok=${llView.ok} error=${llView.error} transient=${llView.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + (llView.models?.length || 0) + " models available."} />
         </label>
 
         <label class="sf">
           <span class="sf-label">LiteLLM base URL</span>
-          <input type="text" spellcheck="false" value=${base} onInput=${(e) => setBase(e.currentTarget.value)} />
+          <input type="text" spellcheck="false" value=${base} onInput=${(e) => { setBase(e.currentTarget.value); dropTest("litellm"); }} />
           <span class="sf-help">Without <code>/v1</code>. The service calls <code>/chat/completions</code> and <code>/models</code> under it.</span>
         </label>`
       : html`<label class="sf">
           <span class="sf-label">Claude Code bridge URL</span>
-          <input type="text" spellcheck="false" value=${claudeBase} onInput=${(e) => setClaudeBase(e.currentTarget.value)} />
+          <input type="text" spellcheck="false" value=${claudeBase} onInput=${(e) => { setClaudeBase(e.currentTarget.value); dropTest("claude-code"); }} />
           <span class="sf-help">Where the bridge runs. Inside Docker use <code>http://host.docker.internal:5191</code>. Start it with <code>node bridge/claude-bridge.js</code> on the host.</span>
-          <${State} ok=${cc.ok} error=${tests["claude-code"] ? undefined : cc.error} transient=${cc.transient} source=${cc.source} envName="PR_EXPLAINER_CLAUDE_BASE_URL" okText=${cc.ok ? "Working. Claude Code " + (cc.version || "") + " is signed in" + (cc.account ? " as " + cc.account : "") + "." : undefined} />
+          <${State} ok=${ccView.ok} error=${ccView.error} transient=${ccView.transient} source=${cc.source} envName="PR_EXPLAINER_CLAUDE_BASE_URL" okText=${ccView.ok ? "Working. Claude Code " + (ccView.version || "") + " is signed in" + (ccView.account ? " as " + ccView.account : "") + "." : undefined} />
+        </label>
+
+        <label class="sf">
+          <span class="sf-label">LiteLLM API key for chat</span>
+          <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.source === "file" ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => { setKey(e.currentTarget.value); dropTest("litellm"); }} />
+          <span class="sf-help">Chat still needs LiteLLM, because it reads the repo with tool calls. Stories do not.</span>
+          <${State} ok=${llView.ok} error=${llView.error} transient=${llView.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + (llView.models?.length || 0) + " models available."} />
+        </label>
+
+        <label class="sf">
+          <span class="sf-label">LiteLLM base URL</span>
+          <input type="text" spellcheck="false" value=${base} onInput=${(e) => { setBase(e.currentTarget.value); dropTest("litellm"); }} />
+          <span class="sf-help">Without <code>/v1</code>. Chat calls <code>/chat/completions</code> under it.</span>
         </label>`}
 
     <div class="sf">

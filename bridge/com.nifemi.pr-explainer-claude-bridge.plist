@@ -12,15 +12,15 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/Users/nifemi/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/Users/nifemi/Library/Logs/pr-explainer-bridge.log</string>
+  <string>__HOME__/Library/Logs/pr-explainer-bridge.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/nifemi/Library/Logs/pr-explainer-bridge.log</string>
+  <string>__HOME__/Library/Logs/pr-explainer-bridge.log</string>
 </dict>
 </plist>
