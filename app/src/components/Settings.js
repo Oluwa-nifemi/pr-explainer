@@ -136,22 +136,18 @@ function PipelineTab({ data, setTab }) {
 function FeaturesTab({ data, draft, update }) {
   const watchOn = Boolean(draft.watch?.enabled ?? data.watch.envDefault);
   const watchNote = data.watch.dryRun
-    ? "This service runs in dry-run mode. It lists what it would build and builds nothing."
+    ? "Dry run, so nothing is built"
     : watchOn
     ? data.watch.running
-      ? "On. It checks GitHub every " + data.watch.intervalS + " seconds."
-      : "On. It starts as soon as you save."
-    : "Off. A story is built only when you open the pull request.";
+      ? "On, every " + Math.round(data.watch.intervalS / 60) + " min"
+      : "On, starts when you save"
+    : "Off, builds on open";
   return html`<div class="sp-pane">
-    <p class="sp-lede">Things the service can do on its own, without you opening a pull request first.</p>
     <section class="sp-card">
-      <h3>Stories made before you arrive</h3>
-      <p class="sp-help">The service can watch GitHub for pull requests that ask for your review and build their stories in the background. Leave it off and a story is built only when you open the pull request, which makes you wait for it.</p>
-      <div class="sp-opt">
-        <span>Build stories before I open them</span>
+      <div class="sp-opt first">
+        <span><b>Build stories before I open them</b><em class="sp-state">${watchNote}</em></span>
         <${Switch} on=${watchOn} label="Build stories before I open them" onChange=${(on) => update((d) => ({ ...d, watch: { enabled: on } }))} />
       </div>
-      <p class="sp-hint">${watchNote} Changing this does not make saved stories outdated.</p>
     </section>
   </div>`;
 }
