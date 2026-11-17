@@ -202,30 +202,35 @@ function teamLabel(teams, slug) {
 function RepoSearch({ onPick }) {
   const [term, setTerm] = useState("");
   const [hits, setHits] = useState([]);
+  const [state, setState] = useState("idle");
   const [error, setError] = useState(null);
+  const query = term.trim();
   useEffect(() => {
-    const q = term.trim();
-    if (q.length < 2) {
+    if (query.length < 2) {
       setHits([]);
+      setState("idle");
       setError(null);
       return;
     }
     let live = true;
+    setState("searching");
     const id = setTimeout(() => {
-      searchRepos(q)
-        .then((list) => live && (setHits(list), setError(null)))
-        .catch((e) => live && setError(e.message));
+      searchRepos(query)
+        .then((list) => live && (setHits(list), setState("done"), setError(null)))
+        .catch((e) => live && (setError(e.message), setState("error")));
     }, 250);
     return () => {
       live = false;
       clearTimeout(id);
     };
-  }, [term]);
+  }, [query]);
   return html`<div class="sp-repo-search">
     <input type="text" spellcheck="false" placeholder="Search repos" value=${term} aria-label="Search repos" onInput=${(e) => setTerm(e.currentTarget.value)} />
-    ${error ? html`<p class="sp-bad">${error}</p>` : null}
+    ${state === "searching" ? html`<p class="sp-hint">Searching…</p>` : null}
+    ${state === "error" ? html`<p class="sp-bad">${error}</p>` : null}
+    ${state === "done" && !hits.length ? html`<p class="sp-hint">No repo matches "${query}".</p>` : null}
     ${hits.length
-      ? html`<ul class="sp-hits">${hits.map((hit) => html`<li key=${hit.repo}><button class="link" onClick=${() => (onPick(hit.repo), setTerm(""), setHits([]))}>${hit.repo}</button></li>`)}</ul>`
+      ? html`<ul class="sp-hits">${hits.map((hit) => html`<li key=${hit.repo}><button class="link" onClick=${() => (onPick(hit.repo), setTerm(""), setHits([]), setState("idle"))}>${hit.repo}</button></li>`)}</ul>`
       : null}
   </div>`;
 }
