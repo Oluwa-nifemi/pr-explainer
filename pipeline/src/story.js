@@ -150,7 +150,9 @@ const words = (s) => String(s).trim().split(/\s+/).filter(Boolean);
 
 export function shortNote(text, maxWords = 15) {
   const w = words(text);
-  return w.length > maxWords ? w.slice(0, maxWords).join(' ') : w.join(' ');
+  if (w.length <= maxWords) return w.join(' ');
+  console.error('[pr-explainer] hunk note trimmed: ' + w.length + ' words, max ' + maxWords + ': "' + text + '"');
+  return w.slice(0, maxWords).join(' ');
 }
 
 export function splitColon(text) {
@@ -344,13 +346,20 @@ function loopProblems(shape, edges) {
   return out;
 }
 
+function unknownEdgeProblem(edge, ids) {
+  const from = edge && typeof edge.from === 'string' ? edge.from : '(missing)';
+  const to = edge && typeof edge.to === 'string' ? edge.to : '(missing)';
+  const known = [...ids].slice(0, 8).join(', ') + (ids.size > 8 ? ', +' + (ids.size - 8) + ' more' : '');
+  return 'edge "' + from + '" > "' + to + '" names a node that does not exist. Known node ids: ' + known;
+}
+
 export function diagramShapeProblems(d) {
   if (!d || !Array.isArray(d.nodes) || !Array.isArray(d.edges)) return [];
   const nodes = d.nodes.filter((n) => n && typeof n.id === 'string' && n.id);
   const ids = new Set(nodes.map((n) => n.id));
   const typedEdges = d.edges.filter((e) => e && typeof e.from === 'string' && typeof e.to === 'string');
   const edges = typedEdges.filter((e) => ids.has(e.from) && ids.has(e.to));
-  const invalid = typedEdges.filter((e) => !ids.has(e.from) || !ids.has(e.to)).map(() => 'edge to an unknown node');
+  const invalid = typedEdges.filter((e) => !ids.has(e.from) || !ids.has(e.to)).map((e) => unknownEdgeProblem(e, ids));
   const shape = diagramColumns(nodes, edges);
   return [...invalid, ...sharedTargetProblems(nodes, edges), ...skipEdgeProblems(shape, edges), ...loopProblems(shape, edges)];
 }
@@ -373,7 +382,7 @@ export function diagramProblems(d, branches = null) {
   }
   if (!d.nodes.some((n) => n && n.kind === 'decision')) out.push('no decision node');
   for (const e of d.edges) {
-    if (!e || !ids.has(e.from) || !ids.has(e.to)) { out.push('edge to an unknown node'); continue; }
+    if (!e || !ids.has(e.from) || !ids.has(e.to)) { out.push(unknownEdgeProblem(e, ids)); continue; }
     for (const p of labelProblems(e.label)) if (p !== 'no label') out.push('edge ' + e.from + '>' + e.to + ' ' + p);
     if (e.kind !== undefined) out.push('edge ' + e.from + '>' + e.to + ' has an edge kind');
   }
@@ -382,7 +391,7 @@ export function diagramProblems(d, branches = null) {
     if (!branches.length) out.push('a diagram needs at least one branch');
     else out.push(...branchProblems(d, branches));
   }
-  return out;
+  return [...new Set(out)];
 }
 
 export function cleanDiagram(d, branches = null, hunks = []) {
@@ -394,7 +403,11 @@ export function cleanDiagram(d, branches = null, hunks = []) {
   }
   const layers = [...new Set(d.nodes.map((n) => n.layer))].sort((a, b) => a - b);
   const layerIndex = new Map(layers.map((l, i) => [l, i]));
-  const trim = (text) => words(text).slice(0, MAX_DIAGRAM_WORDS).join(' ');
+  const trim = (text) => {
+    const all = words(text);
+    if (all.length > MAX_DIAGRAM_WORDS) console.error('[pr-explainer] diagram label trimmed: ' + all.length + ' words, max ' + MAX_DIAGRAM_WORDS + ': "' + text + '"');
+    return all.slice(0, MAX_DIAGRAM_WORDS).join(' ');
+  };
   const codeLike = [...d.nodes, ...d.edges].map((x) => x.label).filter((l) => typeof l === 'string' && looksLikeCode(l));
   if (codeLike.length) console.error('[pr-explainer] diagram kept, label looks like code: ' + codeLike.map((l) => '"' + l + '"').join(', '));
   const nodes = d.nodes.map((n) => {

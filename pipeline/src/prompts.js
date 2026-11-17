@@ -122,8 +122,9 @@ export function gistFixMessage(violations) {
 export function diagramFixMessage(problems) {
   return (
     'The diagram breaks these rules: ' + problems.join('; ') + '. ' +
-    'Give each branch of a decision its own node. When a branch does nothing, add an explicit step node in plain words, for example "use the runner as it is", "skip it" or "nothing happens", and let both branches continue to the next node. ' +
-    'Never draw an edge that skips a column: every forward edge goes from column L to exactly column L+1. Merging two branches into one node in the next column is fine. ' +
+    'Give every decision two edges that end at two different nodes in the next column. Never point both branches of a decision at the same node, and never leave a decision with one edge. When a branch does nothing, create a skip node for it, for example "use the runner as it is" or "nothing happens". When the flow leaves this function, end that branch at its own end node, for example "run the pod check" or "continue the turn". ' +
+    'Never draw an edge that skips a column: every forward edge goes from column L to exactly column L+1. Two branches may meet again in a later column, but not in the column right after the decision. A node may take edges from one column only, so two decisions in different columns need their own end nodes. ' +
+    'Every edge must name a node id that exists in nodes. Use the node ids exactly as written. ' +
     'Use an edge back to an earlier node only for real repetition such as a retry or a loop cap. Reply with the corrected diagram as JSON.'
   );
 }
@@ -175,7 +176,7 @@ export function singleShotPrompt(ctx, { contextText } = {}) {
     '',
     '## Task',
     'Write a guided review story for this PR as JSON.',
-    'summary: why (1-3 sentences), whatChanged (3-5 bullets, each max 12 words, at most one code name per bullet), risk (low/medium/high), riskReason, reviewMinutes.',
+    'summary: why (1-3 sentences), whatChanged (3-5 bullets, each 10 words or fewer, at most one code name per bullet), risk (low/medium/high), riskReason, reviewMinutes.',
     'steps: group the ' + n + ' hunks into review steps. ' + reviewOrder(),
     'Every hunk id h1-h' + n + ' must be in exactly one step. Write "h3-h7" for a run of hunks or "f4" for a whole file.',
     'Each step: title (max 8 words), kind, summary (1-2 sentences), dependsOn (1-based step numbers), hunks, gist, diagram, hunkNotes.',

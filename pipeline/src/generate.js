@@ -14,7 +14,7 @@ import { splitLargeHunks } from './split.js';
 import { RepoContext } from './repoctx.js';
 import { TopLevelScanner } from './scanner.js';
 import { diagramFixSchema, gistMode, gistReviewSchema, inlineWorkerSchema, planSchema, summarySchema, workerSchema } from './schemas.js';
-import { MAX_STEPS, cleanDiagram, diagramShapeProblems, enforceCoverage, hunkRef, mergeSmallSteps, normalizeKind, shortNote, splitColon } from './story.js';
+import { MAX_STEPS, cleanDiagram, diagramProblems, enforceCoverage, hunkRef, mergeSmallSteps, normalizeKind, shortNote, splitColon } from './story.js';
 import { gistLint, validateStory } from './validate.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -30,15 +30,43 @@ const WORKER_TOKENS = 32000;
 const WORKER_TIMEOUT_MS = 360000;
 const TEMP_RE = /\b(temporar\w*|demo|debug|todo|revert\w*)\b/i;
 const MAX_BULLETS = 5;
+const BULLET_TARGET_WORDS = 10;
 const MAX_BULLET_WORDS = 12;
-const DANGLING = new Set(['and', 'or', 'but', 'the', 'a', 'an', 'to', 'of', 'in', 'on', 'for', 'with', 'that', 'as', 'by', 'from', 'at', 'is', 'are', 'was', 'be', 'it', 'its', 'this', 'these', 'those', 'so', 'then', 'while', 'when', 'which', 'into', 'than', 'itself']);
+const DANGLING = new Set(['and', 'or', 'but', 'the', 'a', 'an', 'to', 'of', 'in', 'on', 'for', 'with', 'that', 'as', 'by', 'from', 'at', 'is', 'are', 'was', 'be', 'it', 'its', 'this', 'these', 'those', 'so', 'then', 'while', 'when', 'which', 'into', 'than', 'itself', 'does', 'do', 'did', 'will', 'would', 'can', 'could', 'should', 'has', 'have', 'had', 'not', 'no', 'nor']);
+const CLAUSE_START = new Set(['and', 'but', 'or', 'so', 'while', 'when', 'which', 'because', 'though', 'although', 'unless']);
+
+const wordsOf = (text) => String(text).trim().split(/\s+/).filter(Boolean);
+const bare = (word) => word.toLowerCase().replace(/[^a-z]/g, '');
 
 function cutWords(text, max) {
-  const w = String(text).trim().split(/\s+/).filter(Boolean);
+  const w = wordsOf(text);
   if (w.length <= max) return w.join(' ');
   w.length = max;
-  while (w.length > 1 && DANGLING.has(w[w.length - 1].toLowerCase().replace(/[^a-z]/g, ''))) w.pop();
+  while (w.length > 1 && DANGLING.has(bare(w[w.length - 1]))) w.pop();
+  const tail = w.length - 1;
+  for (let i = tail; i >= Math.max(1, tail - 2); i--) {
+    if (CLAUSE_START.has(bare(w[i]))) {
+      w.length = i;
+      break;
+    }
+  }
   return w.join(' ');
+}
+
+function summaryProblems(value) {
+  const over = (Array.isArray(value.whatChanged) ? value.whatChanged : [])
+    .map((b) => String(b || '').trim())
+    .filter((b) => wordsOf(b).length > MAX_BULLET_WORDS);
+  if (!over.length) return null;
+  return (
+    'summary.whatChanged has bullet(s) over ' +
+    MAX_BULLET_WORDS +
+    ' words: ' +
+    over.map((b) => '"' + b + '" (' + wordsOf(b).length + ' words)').join(', ') +
+    '. Rewrite each as one fact of ' +
+    BULLET_TARGET_WORDS +
+    ' words or fewer without losing the fact.'
+  );
 }
 
 function repairSummary(value) {
@@ -351,30 +379,43 @@ export async function generateStory(input, opts = {}) {
 
   const diagramValueCheck = (v) => ('diagram' in v ? null : 'diagram is missing');
 
-  const repairDiagram = async ({ object, messages, index }) => {
-    const first = diagramShapeProblems(object.diagram);
-    if (!first.length) return { diagram: object.diagram, problems: first };
-    try {
-      const opts = {
-        label: 'worker-' + (index + 1) + '-diagram-fix',
-        messages: [...messages, { role: 'assistant', content: JSON.stringify(object) }, { role: 'user', content: diagramFixMessage(first) }],
-        model,
-        schema: diagramFixSchema,
-        maxTokens: 8000,
-        timeoutMs: WORKER_TIMEOUT_MS,
-        priority: priority(75),
-        signal,
-      };
-      const next = (await jsonCall(opts, diagramValueCheck, { calls })).value;
-      const after = diagramShapeProblems(next.diagram);
-      if (!after.length) return { diagram: next.diagram, problems: after };
-      console.error('[pr-explainer] step ' + (index + 1) + ' diagram still breaks ' + after.length + ' rule(s), dropped: ' + after.join('; '));
-      return { diagram: null, problems: after };
-    } catch (e) {
-      if (e.aborted || signal?.aborted) throw e;
-      console.error('[pr-explainer] step ' + (index + 1) + ' diagram fix failed, dropped: ' + String(e.message || e));
-      return { diagram: null, problems: first };
+  const repairDiagram = async ({ object, messages, index, branches }) => {
+    if (!branches.length) {
+      console.error('[pr-explainer] step ' + (index + 1) + ' diagram dropped: no branches to draw');
+      return { diagram: null, problems: [] };
     }
+    const problemsOf = (d) => diagramProblems(d, branches);
+    const first = problemsOf(object.diagram);
+    if (!first.length) return { diagram: object.diagram, problems: first };
+    let dialog = [...messages, { role: 'assistant', content: JSON.stringify(object) }, { role: 'user', content: diagramFixMessage(first) }];
+    let last = first;
+    let lastDiagram = object.diagram;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const opts = {
+          label: 'worker-' + (index + 1) + '-diagram-fix' + (attempt > 1 ? String(attempt) : ''),
+          messages: dialog,
+          model,
+          schema: diagramFixSchema,
+          maxTokens: 8000,
+          timeoutMs: WORKER_TIMEOUT_MS,
+          priority: priority(75),
+          signal,
+        };
+        const next = (await jsonCall(opts, diagramValueCheck, { calls })).value;
+        const after = problemsOf(next.diagram);
+        if (!after.length) return { diagram: next.diagram, problems: after };
+        last = after;
+        lastDiagram = next.diagram;
+        dialog = [...dialog, { role: 'assistant', content: JSON.stringify({ diagram: next.diagram }) }, { role: 'user', content: diagramFixMessage(after) }];
+      } catch (e) {
+        if (e.aborted || signal?.aborted) throw e;
+        console.error('[pr-explainer] step ' + (index + 1) + ' diagram fix failed on attempt ' + attempt + ', dropped: ' + String(e.message || e));
+        return { diagram: null, problems: last };
+      }
+    }
+    console.error('[pr-explainer] step ' + (index + 1) + ' diagram still breaks ' + last.length + ' rule(s) after 2 fixes, dropped: ' + last.join('; ') + ' | ids: ' + (lastDiagram?.nodes || []).map((n) => n.id).join(',') + ' | edges: ' + (lastDiagram?.edges || []).map((e) => e.from + '>' + e.to).join(','));
+    return { diagram: null, problems: last };
   };
 
   const stepGist = async (s, index, work) => {
@@ -404,7 +445,8 @@ export async function generateStory(input, opts = {}) {
         record.reviewError = String(e.message || e);
       }
     }
-    const diagram = await repairDiagram({ object, messages, index });
+    const branches = Array.isArray(object.branches) && s.hasFunctionBody ? object.branches : [];
+    const diagram = await repairDiagram({ object, messages, index, branches });
     object = { ...object, diagram: diagram.diagram };
     record.final = out.violations;
     if (gistStats) gistStats.push(record);
@@ -489,7 +531,7 @@ export async function generateStory(input, opts = {}) {
     }, (v) => {
       const temp = (v.whatChanged || []).find((b) => TEMP_RE.test(b));
       if (temp && !TEMP_RE.test(v.riskReason || '')) return 'riskReason must name the temporary, demo or debug behaviour in "' + temp + '"';
-      return null;
+      return summaryProblems(v);
     }, { calls })
       .then(({ value }) => {
         story.summary = repairSummary(value);
