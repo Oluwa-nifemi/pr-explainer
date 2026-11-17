@@ -72,7 +72,12 @@ export async function detectTeams({ fresh = false } = {}) {
         const org = team?.organization?.login || '';
         if (config.org && lower(org) !== lower(config.org)) continue;
         if (typeof team?.slug !== 'string' || !team.slug) continue;
-        teams.push({ slug: team.slug, name: team.name || team.slug });
+        teams.push({
+          slug: team.slug,
+          name: team.name || team.slug,
+          reposCount: Number(team.repos_count) || 0,
+          membersCount: Number(team.members_count) || 0,
+        });
       }
       if (batch.length < 100) break;
     }
@@ -93,10 +98,14 @@ export async function detectTeamsWithin(ms) {
   return raced || { teams: detected?.teams || [], error: 'GitHub did not answer yet', fetchedAt: detected?.fetchedAt || Date.now() };
 }
 
+// A team that owns almost nothing is not a code review team, so it stays off until it is asked for.
+export const DEFAULT_MIN_REPOS = 2;
+
 export function effectiveWatchTeams() {
   const saved = watchTeams();
   if (saved.length) return saved;
-  return config.teams.length ? config.teams : (detected?.teams || []).map((team) => team.slug);
+  if (config.teams.length) return config.teams;
+  return (detected?.teams || []).filter((team) => team.reposCount >= DEFAULT_MIN_REPOS).map((team) => team.slug);
 }
 
 async function configuredTeams() {

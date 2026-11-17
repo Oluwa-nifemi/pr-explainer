@@ -11,7 +11,7 @@ import * as jobs from './jobs.js';
 import * as threads from './threads.js';
 import * as sse from './sse.js';
 import { postReview, validateReview, replyToThread, setThreadResolved, setReaction } from './reviews.js';
-import { detectTeamsWithin, effectiveWatchTeams, startWatcher, stopWatcher, syncWatcher, watchIgnoredRepos, watchIntervalS, watcherEnabled, watcherRunning } from './watcher.js';
+import { DEFAULT_MIN_REPOS, detectTeamsWithin, effectiveWatchTeams, startWatcher, stopWatcher, syncWatcher, watchIgnoredRepos, watchIntervalS, watcherEnabled, watcherRunning } from './watcher.js';
 import { ApiError } from './errors.js';
 import * as chat from './chat.js';
 import { readPrFile } from './files.js';
@@ -67,6 +67,17 @@ function sendError(res, err) {
   sendJson(res, 500, { error: { code: 'internal_error', message: err?.message || 'internal error' } });
 }
 
+// Teams that own almost nothing are not review teams, so they stay out of the list unless one is
+// already selected.
+function shownTeams(teams) {
+  const chosen = effectiveWatchTeams();
+  const kept = teams.filter((team) => team.reposCount >= DEFAULT_MIN_REPOS);
+  const extra = chosen
+    .filter((slug) => !kept.some((team) => team.slug === slug))
+    .map((slug) => ({ slug, name: slug, reposCount: 0, membersCount: 0 }));
+  return [...kept, ...extra];
+}
+
 async function settingsPayload() {
   const teams = await detectTeamsWithin(3000);
   return {
@@ -81,7 +92,7 @@ async function settingsPayload() {
       teams: {
         org: config.org,
         value: effectiveWatchTeams(),
-        detected: teams.teams,
+        detected: shownTeams(teams.teams),
         detectedAt: new Date(teams.fetchedAt).toISOString(),
         detectionError: teams.error,
         env: config.teams,

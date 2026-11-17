@@ -151,8 +151,8 @@ function FeaturesTab({ data, draft, update }) {
   const w = data.watch;
   const watchOn = Boolean(draft.watch?.enabled ?? w.envDefault);
   const minutes = draft.watch?.intervalMinutes ?? w.intervalMinutes;
-  const teams = w.teams.detected.length ? w.teams.detected.map((t) => t.slug) : w.teams.value;
   const chosen = draft.watch?.teams ?? w.teams.value;
+  const teams = [...new Set([...w.teams.detected.map((t) => t.slug), ...chosen])];
   const ignored = draft.watch?.ignoredRepos ?? w.ignoredRepos.value;
   const watchNote = w.dryRun
     ? "Dry run, so nothing is built"
