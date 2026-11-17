@@ -137,10 +137,7 @@ async function classify(pr, login) {
 }
 
 function order(a, b) {
-  return (
-    (a.isDraft ? 1 : 0) - (b.isDraft ? 1 : 0) ||
-    Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0)
-  );
+  return Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0);
 }
 
 export async function watchCandidates() {
@@ -162,6 +159,7 @@ export async function watchCandidates() {
     if (seen.has(k)) continue;
     seen.add(k);
     if (config.ignoredRepos.includes(repo)) continue;
+    if (node.isDraft) continue;
     const author = node.author?.login || '';
     if (!author || (limitToTeam && !teammateSet.has(lower(author)))) continue;
     candidates.push({
@@ -171,7 +169,6 @@ export async function watchCandidates() {
       author,
       url: node.url || 'https://github.com/' + repo + '/pull/' + node.number,
       headRefOid: node.headRefOid,
-      isDraft: Boolean(node.isDraft),
       updatedAt: node.updatedAt,
     });
   }
@@ -201,7 +198,6 @@ export async function runWatcher({ dryRun = config.watchDryRun } = {}) {
         'would queue ' +
           pr.repo + '#' + pr.number +
           ' | source ' + pr.source +
-          ' | draft ' + (pr.isDraft ? 'yes' : 'no') +
           ' | author ' + pr.author +
           ' | ' + pr.title +
           (current ? ' | (story already current, a live run would skip)' : ''),
