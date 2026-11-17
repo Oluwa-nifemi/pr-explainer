@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { diagramProblems } from './story.js';
+import { diagramTarget } from './diagram-target.js';
 
 const F = {
   story: ['schemaVersion', 'pr', 'generation', 'summary', 'steps', 'skippedFiles'],
@@ -11,7 +12,7 @@ const F = {
   step: ['id', 'order', 'status', 'title', 'kind', 'summary', 'dependsOn', 'hunks', 'gist', 'diagram', 'error', 'changedInSha'],
   hunk: ['id', 'fingerprint', 'path', 'oldPath', 'fileStatus', 'fileRole', 'oldStart', 'oldLines', 'newStart', 'newLines', 'header', 'patch', 'note'],
   diagram: ['title', 'nodes', 'edges'],
-  node: ['id', 'label', 'kind', 'change', 'layer', 'path'],
+  node: ['id', 'label', 'kind', 'change', 'layer', 'path', 'line'],
   edge: ['from', 'to', 'label'],
   skipped: ['path', 'reason'],
 };
@@ -136,7 +137,7 @@ export function validateStory(story, hunks = null) {
     if (!allowed.includes(val)) bad(path + '.' + key, 'expected one of ' + allowed.join('|') + ', got ' + JSON.stringify(val));
   }
 
-  function diagram(d, path) {
+  function diagram(d, path, hunks) {
     if (!isObj(d)) return bad(path, 'expected object');
     keys(d, F.diagram, path);
     if (d.title !== undefined) str(d, 'title', path);
@@ -147,6 +148,9 @@ export function validateStory(story, hunks = null) {
       if (!isObj(n)) return bad(p, 'expected object');
       keys(n, F.node, p);
       if (n.path !== undefined) str(n, 'path', p);
+      if ((n.path !== undefined || n.line !== undefined) && !diagramTarget(hunks.filter((h) => isStr(h?.patch)), n)) {
+        bad(p, 'path and line must point to an added or context line in this step');
+      }
     });
     edges.forEach((e, i) => {
       const p = path + '.edges[' + i + ']';
@@ -279,7 +283,7 @@ export function validateStory(story, hunks = null) {
       if (s.status === 'ready' && !isStr(s.gist)) bad(p + '.gist', 'missing on a ready step');
       if (s.gist !== undefined) str(s, 'gist', p);
       if (isStr(s.gist)) for (const w of gistLint(s.gist, { changedLines: stepChangedLines(s) })) warn(p + '.gist', w);
-      if (s.diagram !== undefined && s.diagram !== null) diagram(s.diagram, p + '.diagram');
+      if (s.diagram !== undefined && s.diagram !== null) diagram(s.diagram, p + '.diagram', Array.isArray(s.hunks) ? s.hunks : []);
       if (s.status === 'failed' && !isStr(s.error)) bad(p + '.error', 'missing on a failed step');
       if (s.error !== undefined) str(s, 'error', p);
       if (s.changedInSha !== undefined) str(s, 'changedInSha', p);

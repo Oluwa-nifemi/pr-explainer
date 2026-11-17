@@ -67,7 +67,7 @@ function render(planSteps, ctx) {
     if (s.status === 'ready') {
       out.explanation = s.explanation;
       out.dataFlow = s.dataFlow;
-      const d = cleanDiagram(s.diagramRaw);
+      const d = cleanDiagram(s.diagramRaw, null, out.hunks);
       if (d) out.diagram = d;
       const paths = new Set(out.hunks.map((h) => h.path));
       out.checklist = s.checklistRaw.filter((c) => c && c.text).map((c, k) => {

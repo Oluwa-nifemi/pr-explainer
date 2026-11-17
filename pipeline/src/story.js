@@ -1,5 +1,6 @@
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { diagramTarget } from './diagram-target.js';
 
 export function prMeta(meta) {
   const repo = meta.url.match(/github\.com\/([^/]+\/[^/]+)\/pull/)[1];
@@ -384,7 +385,7 @@ export function diagramProblems(d, branches = null) {
   return out;
 }
 
-export function cleanDiagram(d, branches = null) {
+export function cleanDiagram(d, branches = null, hunks = []) {
   if (!d) return undefined;
   const problems = diagramProblems(d, branches);
   if (problems.length) {
@@ -398,7 +399,10 @@ export function cleanDiagram(d, branches = null) {
   if (codeLike.length) console.error('[pr-explainer] diagram kept, label looks like code: ' + codeLike.map((l) => '"' + l + '"').join(', '));
   const nodes = d.nodes.map((n) => {
     const node = { id: n.id, label: trim(n.label), kind: n.kind, change: n.change, layer: layerIndex.get(n.layer) };
-    if (n.path) node.path = n.path;
+    if (diagramTarget(hunks, n)) {
+      node.path = n.path;
+      node.line = n.line;
+    }
     return node;
   });
   const seen = new Set();

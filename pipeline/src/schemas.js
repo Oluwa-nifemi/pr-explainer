@@ -19,6 +19,7 @@ export const diagramSchema = obj({
       change: { type: 'string', enum: ['added', 'modified', 'removed', 'unchanged'] },
       layer: { type: 'integer' },
       path: str,
+      line: { type: 'integer', minimum: 1 },
     }, ['id', 'label', 'kind', 'change', 'layer']),
   },
   edges: {

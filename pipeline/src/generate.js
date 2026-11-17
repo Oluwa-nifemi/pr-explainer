@@ -19,7 +19,7 @@ import { gistLint, validateStory } from './validate.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const BASE_HASH = createHash('sha1')
-  .update(['prompts.js', 'prompt-defaults.js', 'settings.js', 'schemas.js', 'diff.js', 'split.js', 'story.js', 'generate.js'].map((f) => readFileSync(join(here, f), 'utf8')).join('\n'))
+  .update(['prompts.js', 'prompt-defaults.js', 'settings.js', 'schemas.js', 'diff.js', 'split.js', 'story.js', 'diagram-target.js', 'generate.js'].map((f) => readFileSync(join(here, f), 'utf8')).join('\n'))
   .digest('hex');
 
 export const pipelineVersion = () => createHash('sha1').update(BASE_HASH + MODELS[getStoryModel()].label + overridesHash()).digest('hex').slice(0, 12);
@@ -218,7 +218,7 @@ export async function generateStory(input, opts = {}) {
     };
     if (!forcePending && s.status === 'ready') {
       out.gist = s.gist;
-      const d = cleanDiagram(s.diagramRaw, s.branches);
+      const d = cleanDiagram(s.diagramRaw, s.branches, out.hunks);
       if (d) out.diagram = d;
     }
     if (!forcePending && s.status === 'failed') out.error = s.error || 'step failed';
