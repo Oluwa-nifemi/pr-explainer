@@ -321,6 +321,12 @@ async function route(req, res) {
     return;
   }
 
+  if (path === '/api/setup/test' && req.method === 'POST') {
+    const body = await readBody(req);
+    sendJson(res, 200, await credentials.checkConnection(body));
+    return;
+  }
+
   if (path === '/api/setup') {
     if (req.method === 'GET') {
       sendJson(res, 200, await credentials.status());

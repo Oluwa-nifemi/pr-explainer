@@ -1,15 +1,18 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { existsSync } from 'node:fs';
 
-import { MODELS, getStoryModel, logCall, requestFields, schemaFor } from './models.js';
+import { MODELS, getStoryModel, logCall, providerOf, requestFields, schemaFor } from './models.js';
 
 export const DEFAULT_BASE_URL = '';
+// The Claude Code bridge runs on the host. Inside Docker the host is reachable by name.
+export const DEFAULT_CLAUDE_BASE_URL = existsSync('/.dockerenv') ? 'http://host.docker.internal:5191' : 'http://127.0.0.1:5191';
 const MAX_CONCURRENCY = Number(process.env.PRX_MAX_CONCURRENCY) > 0 ? Number(process.env.PRX_MAX_CONCURRENCY) : 6;
 const SILENCE_MS = Number(process.env.PRX_SILENCE_TIMEOUT_MS) > 0 ? Number(process.env.PRX_SILENCE_TIMEOUT_MS) : 60000;
 
 let llmConfig = {};
 
-export function configureLLM({ baseUrl, apiKey }) {
-  llmConfig = { baseUrl: baseUrl || null, apiKey: apiKey || null };
+export function configureLLM({ baseUrl, apiKey, claudeBaseUrl }) {
+  llmConfig = { baseUrl: baseUrl || null, apiKey: apiKey || null, claudeBaseUrl: claudeBaseUrl || null };
 }
 
 export function llmSettings() {
@@ -17,8 +20,18 @@ export function llmSettings() {
   return { baseUrl, apiKey: llmConfig.apiKey || process.env.PR_EXPLAINER_LITELLM_API_KEY || '' };
 }
 
+export function claudeSettings() {
+  const baseUrl = (llmConfig.claudeBaseUrl || process.env.PR_EXPLAINER_CLAUDE_BASE_URL || DEFAULT_CLAUDE_BASE_URL).replace(/\/+$/, '');
+  return { baseUrl, apiKey: '' };
+}
+
+// Story calls follow the profile's provider. Chat always stays on LiteLLM, because it uses tool calls.
+export function storySettings() {
+  return providerOf(getStoryModel()) === 'claude-code' ? claudeSettings() : llmSettings();
+}
+
 export function chatUrl() {
-  return llmSettings().baseUrl + '/chat/completions';
+  return storySettings().baseUrl + '/chat/completions';
 }
 
 export function rank(priority = 'background', order = 0) {
@@ -151,7 +164,7 @@ export async function chat({
   const toolCalls = [];
   let lastTokenAt = null;
   try {
-    const { apiKey } = llmSettings();
+    const { apiKey } = storySettings();
     const res = await fetch(chatUrl(), {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(apiKey ? { authorization: 'Bearer ' + apiKey } : {}) },

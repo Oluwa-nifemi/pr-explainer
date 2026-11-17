@@ -22,7 +22,9 @@ const BASE_HASH = createHash('sha1')
   .update(['prompts.js', 'prompt-defaults.js', 'settings.js', 'schemas.js', 'diff.js', 'split.js', 'story.js', 'diagram-target.js', 'generate.js'].map((f) => readFileSync(join(here, f), 'utf8')).join('\n'))
   .digest('hex');
 
-export const pipelineVersion = () => createHash('sha1').update(BASE_HASH + MODELS[getStoryModel()].label + overridesHash()).digest('hex').slice(0, 12);
+// The model is not part of the version. Changing which model writes stories does not make saved
+// stories outdated; the story shows the model it was written with instead.
+export const pipelineVersion = () => createHash('sha1').update(BASE_HASH + overridesHash()).digest('hex').slice(0, 12);
 
 export { setMaxConcurrency };
 

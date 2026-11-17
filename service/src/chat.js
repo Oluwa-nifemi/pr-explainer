@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
 import { numberedPatch } from '../../pipeline/src/diff.js';
-import { getStoryModel } from '../../pipeline/src/models.js';
+import { chatModels, getStoryModel } from '../../pipeline/src/models.js';
 import { createToolRunner, TOOLS } from './chat-tools.js';
-import { LlmError, MODELS, streamAnswer } from './chatllm.js';
+import { LlmError, streamAnswer } from './chatllm.js';
 import { resolve as resolveCredentials } from './credentials.js';
 import * as gh from './gh.js';
 import * as jobs from './jobs.js';
@@ -34,8 +34,12 @@ function hunkText(hunk) {
 }
 
 export function normalizeModel(value) {
-  if (value === undefined || value === null || value === '') return { model: getStoryModel() };
-  if (!MODELS[value]) return { error: 'model must be deepseek or opus' };
+  const allowed = chatModels();
+  if (value === undefined || value === null || value === '') {
+    const story = getStoryModel();
+    return { model: allowed.includes(story) ? story : allowed[0] };
+  }
+  if (!allowed.includes(value)) return { error: 'model must be ' + allowed.join(' or ') };
   return { model: value };
 }
 
@@ -160,6 +164,7 @@ async function withTimeout(promise, ms, what) {
 
 export async function ask({ repo, number, headSha, story, meta, history, message, model, context, drafts, onEvent, signal, log = () => {} }) {
   const { litellmApiKey, litellmBaseUrl } = await resolveCredentials();
+  if (!litellmApiKey) throw new LlmError(409, 'Chat needs a LiteLLM connection. Add one in Settings, then Connections.');
   const baseSha = story?.pr?.baseSha || meta?.baseSha || '';
   const runner = createToolRunner({ repo, number, story, headSha, baseSha, drafts });
   const messages = [{ role: 'system', content: SYSTEM + '\n\n' + contextText(story, meta, context) }];

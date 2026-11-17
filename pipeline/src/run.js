@@ -3,8 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { pipelineVersion, generateStory } from './generate.js';
-import { globalLimiter, llmSettings } from './llm.js';
-import { MODELS, getStoryModel } from './models.js';
+import { globalLimiter, storySettings } from './llm.js';
+import { MODELS, getStoryModel, providerOf } from './models.js';
 import { validateStory } from './validate.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,12 +29,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(1);
   }
 
-  const { apiKey, baseUrl } = llmSettings();
+  const { apiKey, baseUrl } = storySettings();
   if (!process.env.PR_EXPLAINER_GITHUB_TOKEN) {
     console.error('PR_EXPLAINER_GITHUB_TOKEN is not set');
     process.exit(1);
   }
-  if (!apiKey) {
+  if (!baseUrl) {
+    console.error('no story provider base URL is set');
+    process.exit(1);
+  }
+  if (providerOf(getStoryModel()) === 'litellm' && !apiKey) {
     console.error('PR_EXPLAINER_LITELLM_API_KEY is not set');
     process.exit(1);
   }
@@ -44,7 +48,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const t = (s) => String(s).padStart(7);
   let lastType = null;
 
-  console.error('pipeline ' + pipelineVersion() + ' model ' + MODELS[getStoryModel()].label + ' at ' + baseUrl + ' cap ' + globalLimiter.max);
+  console.error('pipeline ' + pipelineVersion() + ' model ' + MODELS[getStoryModel()].label + ' via ' + providerOf(getStoryModel()) + ' at ' + baseUrl + ' cap ' + globalLimiter.max);
 
   const onEvent = (type, data) => {
     lastType = type;
