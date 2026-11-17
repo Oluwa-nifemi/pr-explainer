@@ -54,7 +54,7 @@ npm run watch-preview
 | `PRX_EXTRA_TEAMMATES` | none | Extra logins treated as teammates. With teams or extra teammates set, the watcher only queues their PRs |
 | `PRX_EXCLUDED_TEAMMATES` | none | Logins removed from the teammate list |
 | `PRX_IGNORED_REPOS` | none | Repos (`owner/name`) the watcher never queues |
-| `PRX_WATCH` | on | `0` disables the review-request watcher |
+| `PRX_WATCH` | on | Default for the review-request watcher. A saved `watch.enabled` in the overrides file wins over it |
 | `PRX_WATCH_INTERVAL_S` | `180` | Watcher period |
 | `PRX_WATCH_ONCE_DRYRUN` | off | `1` runs one watcher pass, prints what it would queue, then stops |
 | `PRX_FAKE_GENERATOR` | off | `1` replays a story from `pipeline/out-v2` instead of calling the pipeline |

@@ -11,7 +11,7 @@ import * as jobs from './jobs.js';
 import * as threads from './threads.js';
 import * as sse from './sse.js';
 import { postReview, validateReview, replyToThread, setThreadResolved, setReaction } from './reviews.js';
-import { startWatcher } from './watcher.js';
+import { startWatcher, stopWatcher, syncWatcher, watcherEnabled, watcherRunning } from './watcher.js';
 import { ApiError } from './errors.js';
 import * as chat from './chat.js';
 import { readPrFile } from './files.js';
@@ -68,7 +68,18 @@ function sendError(res, err) {
 }
 
 function settingsPayload() {
-  return { ...describeSettings(), info: PIPELINE_INFO, model: MODELS[getStoryModel()].label };
+  return {
+    ...describeSettings(),
+    watch: {
+      enabled: watcherEnabled(),
+      running: watcherRunning(),
+      envDefault: config.watch,
+      dryRun: config.watchDryRun,
+      intervalS: config.watchIntervalS,
+    },
+    info: PIPELINE_INFO,
+    model: MODELS[getStoryModel()].label,
+  };
 }
 
 async function readBody(req) {
@@ -321,6 +332,7 @@ async function route(req, res) {
       if (err.code === 'bad_overrides') throw new ApiError(400, 'bad_request', err.message);
       throw err;
     }
+    syncWatcher();
     await jobs.refreshOutdated();
     sendJson(res, 200, settingsPayload());
     return;
@@ -505,15 +517,16 @@ server.listen(config.port, config.host, () => {
       ', dry-run ' +
       (config.dryRun ? 'on' : 'off') +
       ', watch ' +
-      (config.watch ? config.watchIntervalS + 's' : 'off') +
+      (watcherEnabled() ? config.watchIntervalS + 's' : 'off') +
       ')',
   );
 });
 
-if (config.watch) startWatcher();
+if (watcherEnabled()) startWatcher();
 jobs.pump();
 
 const shutdown = () => {
+  stopWatcher();
   server.close();
   setTimeout(() => process.exit(0), 100).unref?.();
 };

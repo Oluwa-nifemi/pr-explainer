@@ -1,7 +1,10 @@
 import { config } from './config.js';
+import { getOverrides } from '../../pipeline/src/settings.js';
 import { graphql, rest, currentLogin } from './gh.js';
 import * as store from './store.js';
 import { enqueueBackground, isBusy, noteWatchedPr } from './jobs.js';
+
+let timer = null;
 
 const TEAM_CACHE_MS = 24 * 60 * 60 * 1000;
 const ENRICH_CONCURRENCY = 4;
@@ -255,11 +258,28 @@ export async function runWatcher({ dryRun = config.watchDryRun } = {}) {
   return summary;
 }
 
+// The settings file wins over the environment. A missing key means "use the env default",
+// so an existing setup behaves exactly as before the toggle existed.
+export function watcherEnabled() {
+  const saved = getOverrides().watch?.enabled;
+  return typeof saved === 'boolean' ? saved : config.watch;
+}
+
+export function watcherRunning() {
+  return Boolean(timer);
+}
+
+export function stopWatcher() {
+  if (timer) clearInterval(timer);
+  timer = null;
+}
+
 export function startWatcher() {
   if (config.watchDryRun) {
     runWatcher({ dryRun: true }).catch((err) => console.error('watcher: ' + err.message));
     return null;
   }
+  if (timer) return timer;
   let active = false;
   const tick = async () => {
     if (active) return;
@@ -273,7 +293,15 @@ export function startWatcher() {
     }
   };
   void tick();
-  const timer = setInterval(tick, config.watchIntervalS * 1000);
+  timer = setInterval(tick, config.watchIntervalS * 1000);
   timer.unref?.();
   return timer;
+}
+
+export function syncWatcher() {
+  const on = watcherEnabled();
+  if (config.watchDryRun) return on;
+  if (on) startWatcher();
+  else stopWatcher();
+  return on;
 }
