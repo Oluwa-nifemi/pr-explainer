@@ -784,6 +784,12 @@ button.frow:hover { background: rgba(60, 50, 30, 0.07); }
 .sp-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 0; font-size: 14px; }
 .sp-opt.first { margin: 0; }
 .sp-opt > span { display: flex; flex-direction: column; gap: 2px; }
+.sp-opt > span.sp-minutes { flex-direction: row; align-items: center; gap: 6px; }
+.sp-minutes input { width: 64px; border: 1px solid #cfc5ad; background: #fff; border-radius: 8px; padding: 6px 8px; font-family: var(--mono); font-size: 12.5px; text-align: center; }
+.sp-repo-search { margin: 14px 0 0; }
+.sp-repo-search input { width: 100%; border: 1px solid #cfc5ad; background: #fff; border-radius: 8px; padding: 8px 10px; font-size: 13.5px; }
+.sp-hits { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; max-height: 220px; overflow: auto; }
+.sp-hits li button { font-size: 13px; font-family: var(--mono); }
 .sp-state { font-style: normal; font-size: 12.5px; color: var(--muted); }
 .sp-rules { margin: 12px 0 0 24px; display: grid; gap: 7px; }
 .sp-rule { display: flex; align-items: center; gap: 11px; min-width: 0; }

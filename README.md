@@ -120,9 +120,10 @@ Put these in `.env`. Docker Compose reads the file by itself.
 | `PR_EXPLAINER_STRONG_MODEL` | Model id for the strong profile. Default `claude-opus-4-5` |
 | `PR_EXPLAINER_STRONG_MODEL_BODY` | Optional JSON merged into every request to the strong model, for example routing tags |
 | `PRX_WATCH` | Default for the background watcher. The Settings page switch overrides it. Docker turns it off unless you set this |
-| `PRX_ORG`, `PRX_TEAMS` | Limit the watcher to one org and its teams |
+| `PRX_ORG` | Org the watcher searches |
+| `PRX_TEAMS` | Default teams for the teammate filter. The Features settings page overrides it, and with neither set the teams you are on are used |
 | `PRX_EXTRA_TEAMMATES`, `PRX_EXCLUDED_TEAMMATES` | Add or remove logins in the teammate list. When set, the watcher only queues their PRs |
-| `PRX_IGNORED_REPOS` | Repos the watcher never queues |
+| `PRX_IGNORED_REPOS` | Default repos the watcher never queues. The Features settings page overrides it |
 
 ### Settings page
 

@@ -118,6 +118,7 @@ export const replyThread = (id, body) => call("POST", "/api/threads/" + encodeUR
 export const setReaction = (id, content, on) => call("POST", "/api/comments/" + encodeURIComponent(id) + "/reactions", { content, on });
 export const getSettings = () => call("GET", "/api/settings");
 export const saveSettings = (body) => call("PUT", "/api/settings", body);
+export const searchRepos = (term) => call("GET", "/api/repos?q=" + encodeURIComponent(term));
 export const setResolved = (id, resolved) => call("POST", "/api/threads/" + encodeURIComponent(id) + (resolved ? "/resolve" : "/unresolve"));
 
 export async function getStory(key) {

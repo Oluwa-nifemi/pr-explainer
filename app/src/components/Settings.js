@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 import { useEffect, useState } from "preact/hooks";
-import { API, getSettings, saveSettings } from "../lib/api.js";
+import { API, getSettings, saveSettings, searchRepos } from "../lib/api.js";
 import { downloadDiagnostics } from "../lib/diagnostics.js";
 import { useSetup } from "../lib/setup.js";
 import { Setup } from "./Setup.js";
@@ -67,7 +67,13 @@ function tidy(draft, data) {
   const max = Number(draft.files?.limits?.maxFileChangedLines);
   if (Number.isInteger(max) && max > 0 && max !== data.files.limits.maxFileChangedLines.default) files.limits = { maxFileChangedLines: max };
   if (Object.keys(files).length) out.files = files;
-  if (typeof draft.watch?.enabled === "boolean") out.watch = { enabled: draft.watch.enabled };
+  const watch = {};
+  if (typeof draft.watch?.enabled === "boolean") watch.enabled = draft.watch.enabled;
+  const minutes = Number(draft.watch?.intervalMinutes);
+  if (Number.isFinite(minutes) && minutes >= 1) watch.intervalMinutes = Math.round(minutes);
+  if (Array.isArray(draft.watch?.teams)) watch.teams = draft.watch.teams;
+  if (Array.isArray(draft.watch?.ignoredRepos)) watch.ignoredRepos = draft.watch.ignoredRepos;
+  if (Object.keys(watch).length) out.watch = watch;
   return out;
 }
 
@@ -134,21 +140,79 @@ function PipelineTab({ data, setTab }) {
 // ---------- features ----------
 
 function FeaturesTab({ data, draft, update }) {
-  const watchOn = Boolean(draft.watch?.enabled ?? data.watch.envDefault);
-  const watchNote = data.watch.dryRun
+  const w = data.watch;
+  const watchOn = Boolean(draft.watch?.enabled ?? w.envDefault);
+  const minutes = draft.watch?.intervalMinutes ?? w.intervalMinutes;
+  const teams = w.teams.detected.length ? w.teams.detected.map((t) => t.slug) : w.teams.value;
+  const chosen = draft.watch?.teams ?? w.teams.value;
+  const ignored = draft.watch?.ignoredRepos ?? w.ignoredRepos.value;
+  const watchNote = w.dryRun
     ? "Dry run, so nothing is built"
     : watchOn
-    ? data.watch.running
-      ? "On, every " + Math.round(data.watch.intervalS / 60) + " min"
+    ? w.running
+      ? "On, every " + minutes + " min"
       : "On, starts when you save"
     : "Off, builds on open";
+  const setWatch = (patch) => update((d) => ({ ...d, watch: { ...(d.watch || {}), ...patch } }));
   return html`<div class="sp-pane">
     <section class="sp-card">
       <div class="sp-opt first">
         <span><b>Build stories before I open them</b><em class="sp-state">${watchNote}</em></span>
-        <${Switch} on=${watchOn} label="Build stories before I open them" onChange=${(on) => update((d) => ({ ...d, watch: { enabled: on } }))} />
+        <${Switch} on=${watchOn} label="Build stories before I open them" onChange=${(on) => setWatch({ enabled: on })} />
+      </div>
+      <div class="sp-opt">
+        <span>Check for new pull requests every</span>
+        <span class="sp-minutes"><input type="number" min="1" step="1" value=${minutes} aria-label="Minutes between checks" onInput=${(e) => setWatch({ intervalMinutes: Number(e.currentTarget.value) || 1 })} /> min</span>
       </div>
     </section>
+    <section class="sp-card">
+      <h3>Teams</h3>
+      ${teams.length
+        ? teams.map((slug) => html`<div class="sp-opt" key=${slug}>
+            <span>${w.teams.detected.find((t) => t.slug === slug)?.name || slug}</span>
+            <${Switch} on=${chosen.includes(slug)} label=${"Include PRs from " + slug} onChange=${(on) => setWatch({ teams: on ? [...new Set([...chosen, slug])] : chosen.filter((t) => t !== slug) })} />
+          </div>`)
+        : html`<p class="sp-hint">${w.teams.detectionError ? "GitHub would not list your teams: " + w.teams.detectionError : "No teams found. Every author counts."}</p>`}
+    </section>
+    <section class="sp-card">
+      <h3>Ignored repos</h3>
+      ${ignored.map((repo) => html`<div class="sp-opt" key=${repo}>
+        <span><code>${repo}</code></span>
+        <button class="link" onClick=${() => setWatch({ ignoredRepos: ignored.filter((r) => r !== repo) })}>Remove</button>
+      </div>`)}
+      <${RepoSearch} onPick=${(repo) => !ignored.includes(repo) && setWatch({ ignoredRepos: [...ignored, repo] })} />
+    </section>
+  </div>`;
+}
+
+function RepoSearch({ onPick }) {
+  const [term, setTerm] = useState("");
+  const [hits, setHits] = useState([]);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    const q = term.trim();
+    if (q.length < 2) {
+      setHits([]);
+      setError(null);
+      return;
+    }
+    let live = true;
+    const id = setTimeout(() => {
+      searchRepos(q)
+        .then((list) => live && (setHits(list), setError(null)))
+        .catch((e) => live && setError(e.message));
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
+  }, [term]);
+  return html`<div class="sp-repo-search">
+    <input type="text" spellcheck="false" placeholder="Search repos" value=${term} aria-label="Search repos" onInput=${(e) => setTerm(e.currentTarget.value)} />
+    ${error ? html`<p class="sp-bad">${error}</p>` : null}
+    ${hits.length
+      ? html`<ul class="sp-hits">${hits.map((hit) => html`<li key=${hit.repo}><button class="link" onClick=${() => (onPick(hit.repo), setTerm(""), setHits([]))}>${hit.repo}</button></li>`)}</ul>`
+      : null}
   </div>`;
 }
 
@@ -434,8 +498,8 @@ export function SettingsPage({ tab, go }) {
           ${problem
             ? html`<span class="sp-bad">${problem}</span>`
             : saved && !dirty
-            ? html`<span>Saved. Prompt and file changes make earlier stories Outdated until you regenerate them.</span>`
-            : html`<span>You have unsaved changes. Prompt and file changes make earlier stories Outdated.</span>`}
+            ? html`<span>Saved.</span>`
+            : html`<span>You have unsaved changes.</span>`}
           ${dirty ? html`<button class="btn ghost small" onClick=${() => (setDraft(clone(data.overrides)), setProblem(null))} disabled=${saving}>Discard</button>` : null}
           ${dirty ? html`<button class="btn primary small" onClick=${save} disabled=${saving}>Save</button>` : null}
         </div>`
