@@ -72,7 +72,7 @@ export function ThreadCard({ t }) {
       (c) => html`<div class="th-comment" key=${c.id}>
         <div class="th-meta">${c.author.avatarUrl ? html`<img src=${c.author.avatarUrl} alt="" />` : null}<b>${c.author.login}</b><span class="muted">${ago(c.createdAt)}</span></div>
         <div class="th-body md" dangerouslySetInnerHTML=${{ __html: c.bodyHtml || c.body }} />
-        ${c.reactions?.length ? html`<div class="th-reacts">${c.reactions.map((r) => html`<button class=${cx("react", r.mine && "mine")} disabled=${busy} onClick=${() => run(() => setReaction(c.id, r.content, !r.mine))}>${REACT[r.content] || r.content} ${r.count}</button>`)}</div>` : null}
+        <${Reactions} comment=${c} busy=${busy} run=${run} />
       </div>`
     )}
     <div class="th-actions">
@@ -91,7 +91,66 @@ export function ThreadCard({ t }) {
   </div>`;
 }
 
-const REACT = { THUMBS_UP: "👍", THUMBS_DOWN: "👎", LAUGH: "😄", HOORAY: "🎉", CONFUSED: "😕", HEART: "❤️", ROCKET: "🚀", EYES: "👀" };
+const REACTIONS = [
+  ["THUMBS_UP", "👍"],
+  ["THUMBS_DOWN", "👎"],
+  ["LAUGH", "😄"],
+  ["HOORAY", "🎉"],
+  ["CONFUSED", "😕"],
+  ["HEART", "❤️"],
+  ["ROCKET", "🚀"],
+  ["EYES", "👀"],
+];
+const EMOJI = Object.fromEntries(REACTIONS);
+const MENU_WIDTH = 280;
+
+function Reactions({ comment, busy, run }) {
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState({ top: 0, left: 0 });
+  const btn = useRef(null);
+  const menu = useRef(null);
+  const mine = (content) => Boolean(comment.reactions?.find((r) => r.content === content)?.mine);
+  const shown = (comment.reactions || []).filter((r) => r.count > 0);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (menu.current?.contains(e.target) || btn.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const toggleMenu = () => {
+    if (open) return setOpen(false);
+    const r = btn.current.getBoundingClientRect();
+    setAt({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - MENU_WIDTH)) });
+    setOpen(true);
+  };
+  const pick = (content) => {
+    setOpen(false);
+    run(() => setReaction(comment.id, content, !mine(content)));
+  };
+  return html`<div class="th-reacts">
+    ${shown.map(
+      (r) => html`<button class=${cx("react", r.mine && "mine")} disabled=${busy} title=${r.mine ? "Remove your reaction" : "Add this reaction"} onClick=${() => run(() => setReaction(comment.id, r.content, !r.mine))}>
+        ${EMOJI[r.content] || r.content} ${r.count}
+      </button>`
+    )}
+    <button ref=${btn} class=${cx("react add", open && "open")} disabled=${busy} aria-haspopup="menu" aria-expanded=${open} aria-label="Add a reaction" title="Add a reaction" onClick=${toggleMenu}>🙂<span>+</span></button>
+    ${open
+      ? html`<div ref=${menu} class="emoji-menu" role="menu" aria-label="Add a reaction" style=${{ top: at.top + "px", left: at.left + "px" }}>
+          ${REACTIONS.map(
+            ([content, emoji]) => html`<button class=${cx("emoji-pick", mine(content) && "mine")} role="menuitem" disabled=${busy} aria-label=${content.toLowerCase().replace("_", " ")} title=${content.toLowerCase().replace("_", " ")} onClick=${() => pick(content)}>${emoji}</button>`
+          )}
+        </div>`
+      : null}
+  </div>`;
+}
 
 export function CommentCard({ c, onJump, compact, href }) {
   const author = live.story?.pr.author;
