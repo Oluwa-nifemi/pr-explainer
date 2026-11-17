@@ -14,6 +14,14 @@ const TABS = [
   ["pipeline", "How it works"],
   ["diagnostics", "Diagnostics"],
 ];
+const HEADINGS = {
+  features: "What runs on its own",
+  prompts: "What the agents are told",
+  files: "What gets into a story",
+  connections: "Your connections",
+  pipeline: "How your stories are made",
+  diagnostics: "Logs for debugging",
+};
 const SKIP_ORDER = ["custom", "lockfile", "snapshot", "binary", "generated"];
 const ROLE_ORDER = ["test", "config", "docs"];
 const ROLE_LABEL = { test: "Test file", config: "Config file", docs: "Docs", source: "Source code" };
@@ -169,7 +177,7 @@ function FeaturesTab({ data, draft, update }) {
       <h3>Teams</h3>
       ${teams.length
         ? teams.map((slug) => html`<div class="sp-opt" key=${slug}>
-            <span>${w.teams.detected.find((t) => t.slug === slug)?.name || slug}</span>
+            <span>${teamLabel(w.teams, slug)}</span>
             <${Switch} on=${chosen.includes(slug)} label=${"Include PRs from " + slug} onChange=${(on) => setWatch({ teams: on ? [...new Set([...chosen, slug])] : chosen.filter((t) => t !== slug) })} />
           </div>`)
         : html`<p class="sp-hint">${w.teams.detectionError ? "GitHub would not list your teams: " + w.teams.detectionError : "No teams found. Every author counts."}</p>`}
@@ -183,6 +191,12 @@ function FeaturesTab({ data, draft, update }) {
       <${RepoSearch} onPick=${(repo) => !ignored.includes(repo) && setWatch({ ignoredRepos: [...ignored, repo] })} />
     </section>
   </div>`;
+}
+
+function teamLabel(teams, slug) {
+  const name = teams.detected.find((t) => t.slug === slug)?.name || slug;
+  const path = teams.org ? teams.org + "/" + slug : slug;
+  return name + " (" + path + ")";
 }
 
 function RepoSearch({ onPick }) {
@@ -479,7 +493,7 @@ export function SettingsPage({ tab, go }) {
       <span class="sp-crumb">Settings</span>
     </header>
     <div class="sp-wrap">
-      <h1>How your stories are made</h1>
+      <h1>${HEADINGS[current]}</h1>
       <nav class="sp-tabs" role="tablist">
         ${TABS.map(([id, label]) => html`<button key=${id} role="tab" aria-selected=${id === current} class=${cx("sp-tab", id === current && "on")} onClick=${() => setTab(id)}>${label}</button>`)}
       </nav>

@@ -11,7 +11,7 @@ import * as jobs from './jobs.js';
 import * as threads from './threads.js';
 import * as sse from './sse.js';
 import { postReview, validateReview, replyToThread, setThreadResolved, setReaction } from './reviews.js';
-import { detectTeams, effectiveWatchTeams, startWatcher, stopWatcher, syncWatcher, watchIgnoredRepos, watchIntervalS, watcherEnabled, watcherRunning } from './watcher.js';
+import { detectTeamsWithin, effectiveWatchTeams, startWatcher, stopWatcher, syncWatcher, watchIgnoredRepos, watchIntervalS, watcherEnabled, watcherRunning } from './watcher.js';
 import { ApiError } from './errors.js';
 import * as chat from './chat.js';
 import { readPrFile } from './files.js';
@@ -68,7 +68,7 @@ function sendError(res, err) {
 }
 
 async function settingsPayload() {
-  const teams = await detectTeams();
+  const teams = await detectTeamsWithin(3000);
   return {
     ...describeSettings(),
     watch: {
@@ -79,6 +79,7 @@ async function settingsPayload() {
       intervalMinutes: Math.round(watchIntervalS() / 60),
       intervalMinutesDefault: Math.round(config.watchIntervalS / 60),
       teams: {
+        org: config.org,
         value: effectiveWatchTeams(),
         detected: teams.teams,
         detectedAt: new Date(teams.fetchedAt).toISOString(),

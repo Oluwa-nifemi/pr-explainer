@@ -84,6 +84,15 @@ export async function detectTeams({ fresh = false } = {}) {
   return detected;
 }
 
+// The settings page must never wait on GitHub, so a slow lookup returns what we already know.
+export async function detectTeamsWithin(ms) {
+  const raced = await Promise.race([
+    detectTeams(),
+    new Promise((resolve) => setTimeout(() => resolve(null), ms).unref?.()),
+  ]);
+  return raced || { teams: detected?.teams || [], error: 'GitHub did not answer yet', fetchedAt: detected?.fetchedAt || Date.now() };
+}
+
 export function effectiveWatchTeams() {
   const saved = watchTeams();
   if (saved.length) return saved;
