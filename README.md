@@ -31,7 +31,8 @@ https://github.com/user-attachments/assets/8ea76f7c-e585-44c9-b204-d5f8ab325938
 
 Edit the worker prompt, choose how many diagrams you want, and change file rules.
 
-https://github.com/user-attachments/assets/550eb711-e193-4f28-9151-b25ca50ac077
+https://github.com/user-attachments/assets/e16f4144-7498-4671-9b2d-169ea2e34c91
+
 
 ## How it works
 
