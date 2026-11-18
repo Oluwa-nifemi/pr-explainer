@@ -79,7 +79,8 @@ export async function resolve() {
 }
 
 export async function checkGithub(token) {
-  if (!token) return { ok: false, error: 'no GitHub token' };
+  // Nothing saved yet is not a failure, so it has no error text.
+  if (!token) return { ok: false, missing: true };
   let res;
   try {
     res = await fetch('https://api.github.com/user', {
@@ -114,7 +115,7 @@ export async function checkGithub(token) {
 
 export async function checkLitellm(baseUrl, apiKey) {
   const models = [];
-  if (!apiKey) return { ok: false, models, error: 'no LiteLLM API key' };
+  if (!apiKey) return { ok: false, models, missing: true };
   if (!baseUrl) return { ok: false, models, error: 'no LiteLLM base URL' };
   if (!/^https?:\/\//.test(baseUrl)) return { ok: false, models, error: 'LiteLLM base URL must start with http or https' };
   let res;
@@ -240,7 +241,7 @@ async function compute() {
       source: creds.sources.github,
       ...(github.login ? { login: github.login } : {}),
       ...(github.avatarUrl ? { avatarUrl: github.avatarUrl } : {}),
-      ...(github.ok ? {} : { error: github.error }),
+      ...(github.ok ? {} : github.missing ? { missing: true } : { error: github.error }),
     },
     litellm: {
       ok: litellm.ok,
@@ -249,7 +250,7 @@ async function compute() {
       models: litellm.models,
       source: creds.sources.litellm,
       deepseek: litellm.ok && creds.storyModel === 'deepseek' ? deepseek.state : 'unknown',
-      ...(litellm.ok ? {} : { error: litellm.error }),
+      ...(litellm.ok ? {} : litellm.missing ? { missing: true } : { error: litellm.error }),
     },
     claudeCode: {
       ok: claudeCode.ok,

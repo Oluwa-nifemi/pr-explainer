@@ -8,7 +8,8 @@ const TOKENS_URL = "https://github.com/settings/tokens";
 const PROVIDER_ORDER = ["litellm", "claude-code"];
 const PROVIDER_DEFAULT = { litellm: "deepseek", "claude-code": "claude-sonnet" };
 
-function State({ ok, error, transient, source, envName, okText }) {
+function State({ ok, error, transient, missing, source, envName, okText }) {
+  if (missing) return html`<p class="sf-state">Not connected yet.</p>`;
   if (error) return html`<p class=${cx("sf-state", transient ? "waiting" : "bad")} role=${transient ? "status" : "alert"}>${error}${transient ? " Your credential is still configured." : ""}</p>`;
   if (source === "env") return html`<p class="sf-state ok">Set by the environment variable <code>${envName}</code>. Change it there.</p>`;
   if (ok) return html`<p class="sf-state ok">${okText}</p>`;
@@ -24,6 +25,7 @@ function Chip({ ok, error, transient }) {
 function detailOf(result, id) {
   if (!result) return "";
   if (result.error) return result.error;
+  if (result.missing) return "";
   if (id === "claude-code") {
     const bits = [];
     if (result.version) bits.push("Claude Code " + result.version);
@@ -39,7 +41,9 @@ export function Setup({ status, modal, embedded }) {
   const [github, setGithub] = useState("");
   const [key, setKey] = useState("");
   const [base, setBase] = useState(status.litellm.baseUrl || "");
-  const [storyModel, setStoryModel] = useState(status.storyModel);
+  // On a fresh install, offer the provider this machine can already reach.
+  const firstModel = status.storyModelSource === "default" && !status.litellm.ok && status.claudeCode?.ok ? PROVIDER_DEFAULT["claude-code"] : status.storyModel;
+  const [storyModel, setStoryModel] = useState(firstModel);
   const [lastLitellm, setLastLitellm] = useState(providerOfModel(status.storyModel) === "litellm" ? status.storyModel : "opus");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -154,7 +158,7 @@ export function Setup({ status, modal, embedded }) {
       <span class="sf-label">GitHub token</span>
       <input type="password" autocomplete="off" spellcheck="false" value=${github} disabled=${gh.source === "env"} placeholder=${gh.source === "env" ? "Set by environment variable" : gh.source === "file" ? "Saved. Paste a new token to replace it." : "ghp_… or github_pat_…"} onInput=${(e) => setGithub(e.currentTarget.value)} />
       <span class="sf-help">Create a token at <a href=${TOKENS_URL} target="_blank" rel="noreferrer">github.com/settings/tokens</a> with the scopes <code>repo</code> and <code>read:org</code>.</span>
-      <${State} ok=${gh.ok} error=${gh.error} transient=${gh.transient} source=${gh.source} envName="PR_EXPLAINER_GITHUB_TOKEN" okText=${"Working. Signed in as " + gh.login + "."} />
+      <${State} ok=${gh.ok} error=${gh.error} missing=${gh.missing} transient=${gh.transient} source=${gh.source} envName="PR_EXPLAINER_GITHUB_TOKEN" okText=${"Working. Signed in as " + gh.login + "."} />
     </label>
 
     <div class="sf">
@@ -173,7 +177,7 @@ export function Setup({ status, modal, embedded }) {
           <span class="sf-label">LiteLLM API key</span>
           <input type="password" autocomplete="off" spellcheck="false" value=${key} disabled=${ll.source === "env"} placeholder=${ll.source === "env" ? "Set by environment variable" : ll.source === "file" ? "Saved. Paste a new key to replace it." : "sk-…"} onInput=${(e) => { setKey(e.currentTarget.value); dropTest("litellm"); }} />
           <span class="sf-help">The key for your LiteLLM gateway. It must be allowed to use the story model you pick below.</span>
-          <${State} ok=${llView.ok} error=${llView.error} transient=${llView.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + (llView.models?.length || 0) + " models available."} />
+          <${State} ok=${llView.ok} error=${llView.error} missing=${llView.missing} transient=${llView.transient} source=${ll.source} envName="PR_EXPLAINER_LITELLM_API_KEY" okText=${"Working. " + (llView.models?.length || 0) + " models available."} />
         </label>
 
         <label class="sf">
