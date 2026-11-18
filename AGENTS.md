@@ -8,7 +8,7 @@ Read README.md for how to run it.
 - `pipeline/` builds a story from a PR: diff parsing, planner, summary, workers, checks. Plain Node (ESM), no build step.
 - `service/` is the local HTTP server (port 5190). It queues jobs, talks to GitHub, stores stories, serves chat and review posting. It imports the pipeline directly.
 - `app/` is the UI (port 5180). Preact with htm, built by Vite. No state library: `app/src/lib/session.js` holds the state.
-- `docs/` and `demo-ui/` are local only and git-ignored. Do not rely on them.
+- `demo-ui/` is local only and git-ignored. Do not rely on it.
 
 ## Run and check
 

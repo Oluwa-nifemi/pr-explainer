@@ -41,18 +41,16 @@ Blue boxes are model calls. The rest is plain code. The planner streams its step
 
 ## Quick start
 
-You need Docker, a GitHub token and a [LiteLLM](https://github.com/BerriAI/litellm) gateway.
+You need Docker, a GitHub token, and one provider that writes the stories: a [LiteLLM](https://github.com/BerriAI/litellm) gateway, or Claude Code signed in on the same machine.
 
-1. Clone the repo and copy the example settings:
+1. Clone the repo:
 
    ```sh
    git clone https://github.com/Oluwa-nifemi/pr-explainer.git
    cd pr-explainer
-   cp .env.example .env
    ```
 
-2. Edit `.env`. Set your gateway URL and, if your gateway uses other model names, the model ids. You can also leave the keys empty and enter them on the setup screen.
-3. Start it:
+2. Start it:
 
    ```sh
    ./start.sh
@@ -60,23 +58,11 @@ You need Docker, a GitHub token and a [LiteLLM](https://github.com/BerriAI/litel
 
    It starts the Claude Code bridge when Claude Code is signed in, then the containers. `--no-build` skips the rebuild, `--stop` stops both, `--install-service` starts the bridge at login. `docker compose up -d --build` still works on its own.
 
-4. Open http://127.0.0.1:5180. Enter your GitHub token and LiteLLM key if asked, paste a PR link, and wait a few seconds.
+3. Open http://127.0.0.1:5180 and fill in the setup screen. Enter your GitHub token, then pick a provider: your Claude Code login needs nothing else, and a LiteLLM gateway needs its URL and key. Choose the model, press Save, and paste a PR link.
+
+No `.env` file is needed. Copy `.env.example` to `.env` only to change something the setup screen does not cover, such as the gateway model ids or the org the watcher searches, or to set one value for every machine. The table under [Configuration](#configuration) lists what each variable does.
 
 The containers restart by themselves when Docker starts. Turn on "Start Docker Desktop when you sign in" and nothing else is needed.
-
-### Open a PR from Raycast
-
-Add this repo's `raycast/` folder as a Script Directory in Raycast Settings → Extensions → Script Commands. The script must be executable: `chmod +x raycast/explain-pr.sh`.
-
-Search for **Explain PR**, paste a GitHub PR URL into the argument field, and press Enter. It opens that PR in your browser. PR Explainer must already be running locally.
-
-**GitHub token.** It must read the repos you review and write reviews. A classic token with `repo` works. A fine-grained token needs Pull requests (read and write) and Contents (read).
-
-**LiteLLM gateway.** The service calls `/chat/completions` on your gateway. Only LiteLLM is tested.
-
-**Claude Code instead.** You can write stories and chat with a Claude Code login instead of a gateway. `./start.sh` starts the bridge on your machine; then pick Claude Code in Settings → Connections or on the setup screen.
-
-Inside Docker the bridge is reachable at `http://host.docker.internal:5191`, which is the default. Set `PR_EXPLAINER_CLAUDE_BASE_URL` only if the bridge is not on the machine that runs Docker. The bridge runs on your machine because the login belongs to the `claude` command and cannot be copied into a container. Chat uses it too: lookups are passed through the bridge as tool calls. See [bridge/README.md](bridge/README.md) to keep the bridge running at login.
 
 <details>
 <summary>Run without Docker</summary>
@@ -92,16 +78,19 @@ Export reads the page built by `npm run build:export --prefix app`. Run that onc
 
 </details>
 
-## Export a story
+### What to connect
 
-Open a PR and pick Export from the `⋯` menu in the header. You get one HTML file with the whole story inside it: the overview, every step, the diagrams, the diffs and the test and doc files. Your draft comments are kept too, in that file's own local storage.
+**GitHub token.** It must read the repos you review and write reviews. A classic token with `repo` works. A fine-grained token needs Pull requests (read and write) and Contents (read).
 
-The file works with no service behind it. Open it by double-clicking, or send it to someone. Chat and the file lines between hunks need the service, so they are off in an export. The exported story is a snapshot: it does not follow new commits.
+**LiteLLM gateway.** The service calls `/chat/completions` on your gateway. Pick this when you already have a gateway with the models you want.
 
-A comment you write in an export stays in that file's local storage, so it survives a reload. An export cannot post to GitHub, so the Review button shows the whole review in the page: your summary, and each comment with its `path:line`, the code it points at, and a link to that file's diff on GitHub. Copy as markdown or Download .md takes it out to paste into GitHub's review box. GitHub has no link that fills in a review for you.
+**Claude Code instead.** You can write stories and chat with a Claude Code login instead of a gateway. `./start.sh` starts the bridge on your machine; then pick Claude Code in Settings → Connections or on the setup screen.
+
+Stories and chat both go through the bridge. See [docs/bridge.md](docs/bridge.md) for how it works and how to keep it running at login.
 
 ## Features
 
+- Stories and chat written by your LiteLLM gateway, or by your Claude Code login through a bridge
 - A PR split into review steps, each with a short gist
 - Flow diagrams for steps that branch
 - One-line notes on test hunks. Tests and docs sit in a closing section
@@ -113,60 +102,51 @@ A comment you write in an export stays in that file's local storage, so it survi
 - Retry for one failed step
 - Editable prompts and file rules
 - Export one PR as a single HTML file you can send to someone
+- Open a PR straight from Raycast, see [docs/raycast.md](docs/raycast.md)
 
-## Configuration
-
-Put these in `.env`. Docker Compose reads the file by itself.
-
-| Variable | Meaning |
-|---|---|
-| `PR_EXPLAINER_GITHUB_TOKEN` | GitHub token. Optional, you can use the setup screen |
-| `PR_EXPLAINER_LITELLM_API_KEY` | LiteLLM key. Optional, you can use the setup screen |
-| `PR_EXPLAINER_LITELLM_BASE_URL` | Gateway URL, without `/v1` |
-| `PR_EXPLAINER_FAST_MODEL` | Model id for the fast profile. Default `deepseek-chat` |
-| `PR_EXPLAINER_STRONG_MODEL` | Model id for the strong profile. Default `claude-opus-4-5` |
-| `PR_EXPLAINER_STRONG_MODEL_BODY` | Optional JSON merged into every request to the strong model, for example routing tags |
-| `PRX_WATCH` | Default for the background watcher. The Settings page switch overrides it. Docker turns it off unless you set this |
-| `PRX_ORG` | Org the watcher searches |
-| `PRX_TEAMS` | Default teams for the teammate filter. The Features settings page overrides it, and with neither set the teams you are on are used |
-| `PRX_EXTRA_TEAMMATES`, `PRX_EXCLUDED_TEAMMATES` | Add or remove logins in the teammate list. When set, the watcher only queues their PRs |
-| `PRX_IGNORED_REPOS` | Default repos the watcher never queues. The Features settings page overrides it |
-
-### Settings page
+## Settings
 
 Click Settings on the home page. You can read and change:
 
 - **How it works.** The flow above, with the checks that always run.
 - **Prompts.** Everything each agent is sent, in order. Edit the planner, summary and worker text, and choose how many diagrams you want.
 - **Files.** What is left out of stories, such as lockfiles and snapshots, and how files are labelled as test, config or docs. Add your own patterns and try a path before you save.
-- **Connections.** Your GitHub and LiteLLM details.
+- **Connections.** Your GitHub token, and the provider that writes stories: a LiteLLM gateway, or the Claude Code bridge with the model you want. Each one has a Test button and a status line.
 - **Diagnostics.** Export recent service logs and this tab's browser errors as one JSON file. It works before setup too.
 
-Your changes are saved to `~/.config/pr-explainer/overrides.json`, outside the project. Anything you do not change follows the defaults. Saving marks existing stories as Outdated, and you regenerate them one at a time. To go back to the defaults, delete the file. In Docker: `docker compose exec service rm /home/node/.config/pr-explainer/overrides.json`.
+## Configuration
 
-### Temporary GitHub failures
+These live in `.env`, which Docker Compose reads by itself. A row marked as covered by the app is optional here: set it only to pin one value for every machine.
 
-GitHub reads retry up to twice after connection failures or HTTP 500, 502, 503 and 504 responses. Each read attempt times out after 15 seconds. Retries use short, increasing delays. Authentication, permission and rate-limit failures are not retried. Reviews, comments and other GitHub writes are never retried automatically.
+| Variable | Meaning | Also in the app? |
+|---|---|---|
+| `PR_EXPLAINER_GITHUB_TOKEN` | GitHub token | Yes, Connections |
+| `PR_EXPLAINER_LITELLM_API_KEY` | LiteLLM key | Yes, Connections |
+| `PR_EXPLAINER_LITELLM_BASE_URL` | Gateway URL, without `/v1` | Yes, Connections |
+| `PR_EXPLAINER_STORY_MODEL` | Pins the model that writes stories: `deepseek`, `opus`, `claude` or `claude-sonnet` | Shown locked in Connections, change it here |
+| `PR_EXPLAINER_CLAUDE_BASE_URL` | Where the bridge listens. Default `http://host.docker.internal:5191` inside Docker, `http://127.0.0.1:5191` outside it. Only needed when the bridge is not on the machine that runs Docker | No, this file only |
+| `PR_EXPLAINER_CLAUDE_MODEL` | Model id behind the Opus Claude Code profile. Default `claude-code-opus` | No, this file only |
+| `PR_EXPLAINER_CLAUDE_SONNET_MODEL` | Model id behind the Sonnet Claude Code profile. Default `claude-code-sonnet` | No, this file only |
+| `PR_EXPLAINER_FAST_MODEL` | Model id for the fast LiteLLM profile. Default `deepseek-chat` | No, this file only |
+| `PR_EXPLAINER_STRONG_MODEL` | Model id for the strong LiteLLM profile. Default `claude-opus-4-5` | No, this file only |
+| `PR_EXPLAINER_STRONG_MODEL_BODY` | Optional JSON merged into every request to the strong profile, for example routing tags | No, this file only |
+| `PRX_WATCH` | Default for the background watcher. Docker turns it off unless you set this | Yes, Features |
+| `PRX_ORG` | Org the watcher searches | No, this file only |
+| `PRX_TEAMS` | Default teams for the teammate filter. With neither the page nor this set, the teams you are on are used | Yes, Features |
+| `PRX_EXTRA_TEAMMATES`, `PRX_EXCLUDED_TEAMMATES` | Add or remove logins in the teammate list. When set, the watcher only queues their PRs | No, this file only |
+| `PRX_IGNORED_REPOS` | Default repos the watcher never queues | Yes, Features |
 
-If opening a PR still fails, click **Retry** on the error page. You do not need to reload. Logs include each retry and whether the request recovered.
+## When something breaks
 
-A connection outage during startup does not mean your saved credentials are missing. The app keeps saved stories accessible and shows which connection is unavailable. It checks again automatically and removes the notice after recovery. Setup appears only for missing credentials, rejected credentials or settings that need correction.
-
-### Export logs for debugging
-
-Open **Settings → Diagnostics → Export logs**. If setup is blocked, click **Diagnostics** on the setup screen. You can also open http://127.0.0.1:5180/?settings=diagnostics directly.
-
-The export includes up to 2 MB of recent service and pipeline logs, runtime details, and up to 200 browser events from the current tab. Browser events survive reloads in that tab and expire after 14 days. They include failed requests, broken connections, failed resource loads and interrupted streams, not request bodies or chat text.
-
-If the service is unreachable, the download still contains browser logs. The page and the file both say that service logs are missing. Export before closing the affected tab.
-
-Configured GitHub and LiteLLM keys and common credential patterns are redacted from service logs during export. Repository names, file paths and existing pipeline output may remain. Review the file before sharing it. Export does not upload anything.
-
-Docker Compose normally saves service logs in `logs/service.log`, with 5 MB rotation and up to five older files. Rotated files expire after 14 days. If that folder is not writable, the service uses its cache folder. You can also inspect console output with `docker compose logs service`.
+- **GitHub.** Reads retry twice on connection failures and HTTP 500, 502, 503 and 504 responses. Timeouts, permission and rate-limit failures are not retried, and writes never are. If a PR still fails to open, press Retry on the error page.
+- **A dropped connection is not lost credentials.** Saved stories stay readable, the header names what is unavailable, and the notice clears when the check recovers. Setup appears only for credentials that are missing, rejected or need correcting.
+- **Logs.** Settings → Diagnostics → Export logs gives one JSON file with recent service logs and this tab's browser errors. It works before setup from http://127.0.0.1:5180/?settings=diagnostics. Keys and common credential patterns are redacted; repo names, paths and story text may remain, so read it before sharing. Nothing is uploaded.
+- **Container logs.** `logs/service.log` in the repo, rotated at 5 MB. Or `docker compose logs service`.
 
 ## Privacy and limits
 
-- The diff and some repo context (changed functions, their callers, the old code) go to your LiteLLM gateway. Your GitHub token goes only to GitHub.
+- The diff and some repo context (changed functions, their callers, the old code) go to the provider that writes your stories. On LiteLLM that is your gateway. On Claude Code it is Anthropic, through the `claude` command on your machine. Chat goes to the same provider.
+- Your GitHub token goes only to GitHub.
 - Tokens are stored on your machine only. The service never returns them.
 - The ports listen on `127.0.0.1` only. There is no login, so this is a single-user tool.
 
