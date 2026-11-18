@@ -62,12 +62,13 @@ export async function resolve() {
   const githubToken = env.PR_EXPLAINER_GITHUB_TOKEN || file.githubToken || '';
   const litellmApiKey = env.PR_EXPLAINER_LITELLM_API_KEY || file.litellmApiKey || '';
   const litellmBaseUrl = normalizeBase(env.PR_EXPLAINER_LITELLM_BASE_URL || file.litellmBaseUrl || DEFAULT_BASE_URL);
-  const claudeBaseUrl = normalizeBase(env.PR_EXPLAINER_CLAUDE_BASE_URL || file.claudeBaseUrl || DEFAULT_CLAUDE_BASE_URL);
+  // Not a setting. The default follows the environment, and the variable covers an unusual host.
+  const claudeBaseUrl = normalizeBase(env.PR_EXPLAINER_CLAUDE_BASE_URL || DEFAULT_CLAUDE_BASE_URL);
   registerSecrets(env.PR_EXPLAINER_GITHUB_TOKEN, file.githubToken, env.PR_EXPLAINER_LITELLM_API_KEY, file.litellmApiKey);
   const sources = {
     github: env.PR_EXPLAINER_GITHUB_TOKEN ? 'env' : file.githubToken ? 'file' : 'missing',
     litellm: env.PR_EXPLAINER_LITELLM_API_KEY ? 'env' : file.litellmApiKey ? 'file' : 'missing',
-    claudeCode: env.PR_EXPLAINER_CLAUDE_BASE_URL ? 'env' : file.claudeBaseUrl ? 'file' : 'default',
+    claudeCode: env.PR_EXPLAINER_CLAUDE_BASE_URL ? 'env' : 'default',
   };
   configureLLM({ baseUrl: litellmBaseUrl, apiKey: litellmApiKey, claudeBaseUrl });
   configureGitHub({ token: githubToken });
@@ -171,7 +172,7 @@ export async function checkConnection(input = {}) {
   const current = await resolve();
   const provider = input.provider === 'claude-code' ? 'claude-code' : 'litellm';
   if (provider === 'claude-code') {
-    const baseUrl = normalizeBase(input.claudeBaseUrl) || current.claudeBaseUrl;
+    const baseUrl = current.claudeBaseUrl;
     const check = await checkClaudeCode(baseUrl);
     return {
       provider,
@@ -300,7 +301,6 @@ export async function save(input = {}) {
   const candidateKey =
     typeof input.litellmApiKey === 'string' && input.litellmApiKey.trim() ? input.litellmApiKey.trim() : null;
   const candidateBase = normalizeBase(input.litellmBaseUrl);
-  const candidateClaudeBase = normalizeBase(input.claudeBaseUrl);
   const candidateToken = typeof input.githubToken === 'string' && input.githubToken.trim() ? input.githubToken.trim() : null;
   const baseUrl = candidateBase || current.litellmBaseUrl;
   let saved = false;
@@ -324,13 +324,6 @@ export async function save(input = {}) {
       saved = true;
       delete errors.litellm;
     } else errors.litellm = check.error;
-  }
-  if (candidateClaudeBase) {
-    const check = await checkClaudeCode(candidateClaudeBase);
-    if (check.ok) {
-      next.claudeBaseUrl = candidateClaudeBase;
-      saved = true;
-    } else errors.claudeCode = check.error;
   }
   if (candidateToken) {
     const check = await checkGithub(candidateToken);

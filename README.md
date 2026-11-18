@@ -74,13 +74,9 @@ Search for **Explain PR**, paste a GitHub PR URL into the argument field, and pr
 
 **LiteLLM gateway.** The service calls `/chat/completions` on your gateway. Only LiteLLM is tested.
 
-**Claude Code instead.** You can write stories with a Claude Code login instead of a gateway. Run the bridge on your machine, then pick Claude Code in Settings → Connections or on the setup screen:
+**Claude Code instead.** You can write stories and chat with a Claude Code login instead of a gateway. `./start.sh` starts the bridge on your machine; then pick Claude Code in Settings → Connections or on the setup screen.
 
-```sh
-node bridge/claude-bridge.js
-```
-
-Inside Docker the bridge is reachable at `http://host.docker.internal:5191`, which is the default. The bridge runs on your machine because the login belongs to the `claude` command and cannot be copied into a container. Chat uses it too: lookups are passed through the bridge as tool calls. See [bridge/README.md](bridge/README.md) to keep the bridge running at login.
+Inside Docker the bridge is reachable at `http://host.docker.internal:5191`, which is the default. Set `PR_EXPLAINER_CLAUDE_BASE_URL` only if the bridge is not on the machine that runs Docker. The bridge runs on your machine because the login belongs to the `claude` command and cannot be copied into a container. Chat uses it too: lookups are passed through the bridge as tool calls. See [bridge/README.md](bridge/README.md) to keep the bridge running at login.
 
 <details>
 <summary>Run without Docker</summary>

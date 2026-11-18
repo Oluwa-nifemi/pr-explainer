@@ -38,7 +38,6 @@ export function Setup({ status, modal, embedded }) {
   const [github, setGithub] = useState("");
   const [key, setKey] = useState("");
   const [base, setBase] = useState(status.litellm.baseUrl || "");
-  const [claudeBase, setClaudeBase] = useState(status.claudeCode?.baseUrl || "");
   const [storyModel, setStoryModel] = useState(status.storyModel);
   const [lastLitellm, setLastLitellm] = useState(providerOfModel(status.storyModel) === "litellm" ? status.storyModel : "opus");
   const [busy, setBusy] = useState(false);
@@ -55,9 +54,8 @@ export function Setup({ status, modal, embedded }) {
   const provider = providerOfModel(storyModel);
   const locked = status.storyModelSource === "env";
   const baseChanged = base.trim() && base.trim() !== ll.baseUrl;
-  const claudeBaseChanged = claudeBase.trim() !== (cc.baseUrl || "");
   const storyChanged = storyModel !== status.storyModel;
-  const dirty = github.trim() || key.trim() || baseChanged || claudeBaseChanged || storyChanged;
+  const dirty = github.trim() || key.trim() || baseChanged || storyChanged;
 
   const pickProvider = (id) => {
     if (provider === id) return;
@@ -75,7 +73,6 @@ export function Setup({ status, modal, embedded }) {
     if (github.trim() && gh.source !== "env") body.githubToken = github.trim();
     if (key.trim() && ll.source !== "env") body.litellmApiKey = key.trim();
     if (baseChanged) body.litellmBaseUrl = base.trim();
-    if (claudeBaseChanged && claudeBase.trim()) body.claudeBaseUrl = claudeBase.trim();
     if (storyChanged) body.storyModel = storyModel;
     setBusy(true);
     setProblem(null);
@@ -83,11 +80,10 @@ export function Setup({ status, modal, embedded }) {
     try {
       const next = await saveSetup(body);
       const errors = next.errors || {};
-      const failed = errors.github || errors.litellm || errors.claudeCode;
+      const failed = errors.github || errors.litellm;
       if (body.githubToken && !errors.github) setGithub("");
       if (body.litellmApiKey && !errors.litellm) setKey("");
       if (body.litellmBaseUrl && !errors.litellm) setBase(next.litellm.baseUrl || base);
-      if (body.claudeBaseUrl && !errors.claudeCode) setClaudeBase(next.claudeCode.baseUrl || claudeBase);
       setStoryModel(next.storyModel);
       setSaved(next.ready && !failed);
       setProblem(failed || null);
@@ -104,7 +100,7 @@ export function Setup({ status, modal, embedded }) {
     try {
       const body =
         id === "claude-code"
-          ? { provider: "claude-code", claudeBaseUrl: claudeBase.trim() }
+          ? { provider: "claude-code" }
           : { provider: "litellm", litellmBaseUrl: base.trim(), litellmApiKey: key.trim() };
       const result = await testSetup(body);
       setTests((t) => ({ ...t, [id]: result }));
@@ -184,12 +180,11 @@ export function Setup({ status, modal, embedded }) {
           <input type="text" spellcheck="false" value=${base} onInput=${(e) => { setBase(e.currentTarget.value); dropTest("litellm"); }} />
           <span class="sf-help">Without <code>/v1</code>. The service calls <code>/chat/completions</code> and <code>/models</code> under it.</span>
         </label>`
-      : html`<label class="sf">
-          <span class="sf-label">Claude Code bridge URL</span>
-          <input type="text" spellcheck="false" value=${claudeBase} onInput=${(e) => { setClaudeBase(e.currentTarget.value); dropTest("claude-code"); }} />
-          <span class="sf-help">Where the bridge runs. Inside Docker use <code>http://host.docker.internal:5191</code>. Start it with <code>node bridge/claude-bridge.js</code> on the host.</span>
+      : html`<div class="sf">
+          <span class="sf-label">Claude Code</span>
           <${State} ok=${ccView.ok} error=${ccView.error} transient=${ccView.transient} source=${cc.source} envName="PR_EXPLAINER_CLAUDE_BASE_URL" okText=${ccView.ok ? "Working. Claude Code " + (ccView.version || "") + " is signed in" + (ccView.account ? " as " + ccView.account : "") + "." : undefined} />
-        </label>`}
+          <span class="sf-help">The bridge runs on this machine and starts with <code>./start.sh</code>.</span>
+        </div>`}
 
     <div class="sf">
       <span class="sf-label">Story model</span>
