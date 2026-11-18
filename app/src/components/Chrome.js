@@ -128,6 +128,7 @@ export function ReviewDialog({ story }) {
   const drafts = comments.filter((c) => !c.posted);
   const replies = useSession((s) => s.replies || EMPTY);
   const replyIds = Object.keys(replies);
+  const silent = !review.summary.trim() && !drafts.length && !replyIds.length;
   const lastAuto = useRef("");
   const ta = useRef(null);
   const exporting = isExport();
@@ -258,7 +259,7 @@ export function ReviewDialog({ story }) {
                 )}
               </div>`}
           <label class="field">
-            <span>Summary</span>
+            <span>Summary${exporting || review.verdict === "comment" ? "" : html` <span class="muted">optional</span>`}</span>
             <textarea ref=${ta} rows=${exporting ? 3 : 6} value=${review.summary} onInput=${(e) => set({ summary: e.currentTarget.value })} placeholder="Say what you found, in a few lines" />
           </label>
           <div class="review-facts">
@@ -281,7 +282,7 @@ export function ReviewDialog({ story }) {
               </footer>`
             : html`<footer class="modal-foot">
                 <button class="btn ghost" onClick=${close} disabled=${review.status === "sending"}>Cancel</button>
-                <button class=${cx("btn primary", review.verdict === "request_changes" && "danger")} onClick=${submit} disabled=${review.status === "sending" || !review.summary.trim() && !drafts.length && !replyIds.length}>
+                <button class=${cx("btn primary", review.verdict === "request_changes" && "danger")} onClick=${submit} disabled=${review.status === "sending" || (silent && review.verdict === "comment")}>
                   ${review.status === "sending" ? html`<i class="spin light"></i>Submitting…` : "Submit review"}
                 </button>
               </footer>`}`}
