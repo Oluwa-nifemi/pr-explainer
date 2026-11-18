@@ -6,6 +6,7 @@ import { cx } from "../lib/util.js";
 
 const TOKENS_URL = "https://github.com/settings/tokens";
 const PROVIDER_ORDER = ["litellm", "claude-code"];
+const PROVIDER_DEFAULT = { litellm: "deepseek", "claude-code": "claude-sonnet" };
 
 function State({ ok, error, transient, source, envName, okText }) {
   if (error) return html`<p class=${cx("sf-state", transient ? "waiting" : "bad")} role=${transient ? "status" : "alert"}>${error}${transient ? " Your credential is still configured." : ""}</p>`;
@@ -61,7 +62,7 @@ export function Setup({ status, modal, embedded }) {
     if (provider === id) return;
     if (provider === "litellm" && lastLitellm !== storyModel) setLastLitellm(storyModel);
     if (id === "litellm") setStoryModel(lastLitellm);
-    else setStoryModel(providers[id]?.models?.[0]?.id || "claude");
+    else setStoryModel(providers[id]?.models?.some((m) => m.id === PROVIDER_DEFAULT[id]) ? PROVIDER_DEFAULT[id] : providers[id]?.models?.[0]?.id || "claude-sonnet");
   };
 
   // A test result describes the values it tested. Drop it when they change.
